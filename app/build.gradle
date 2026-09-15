@@ -20,6 +20,12 @@ android {
 
     flavorDimensions.add("root")
 
+    // Which glasses-free 3D panel the build targets. The two need different machinery: a
+    // bonded lenticular lens weaves the eyes into fixed screen columns, which a shader can
+    // do unaided, while Leia's diffractive backlight steers its views from where the
+    // viewer's face is and only Leia's own SDK knows how to drive it.
+    flavorDimensions.add("panel")
+
     buildFeatures {
         buildConfig = true
     }
@@ -60,6 +66,52 @@ android {
             dimension "root"
             buildConfigField "boolean", "ROOT_BUILD", "false"
         }
+
+        // Leia lightfield panels — the Lume Pad 2. Needs Leia's proprietary CNSDK in
+        // app/libs and app/src/leiaLumepad/jniLibs, which is licensed only to Leia's
+        // partners and is deliberately not committed. Build this flavour for your own
+        // device only; an APK from it cannot be redistributed.
+        //
+        // Named leiaLumepad (not plain "leia") so it reads as one of two device-specific
+        // leia-panel flavours side by side with leiaRedmagic below, rather than looking
+        // like "the" Leia flavour with Red Magic as an afterthought. applicationIdSuffix
+        // stays plain ".leia" though -- that's the installed package identity on real
+        // devices, and changing it would orphan any existing install's app data.
+        leiaLumepad {
+            dimension "panel"
+            buildConfigField "boolean", "LEIA_BUILD", "true"
+
+            // Without this the panel flavours share an application id, so installing one
+            // silently replaces another and there is no way to tell from the device which
+            // is actually there. They target different hardware and are worth keeping side
+            // by side on a desk that has several.
+            applicationIdSuffix ".leia"
+        }
+
+        // Leia lightfield panels — the Red Magic Tablet 3D Explorer Edition (model NP02J,
+        // codename K68). Same Java/manifest/res as `leiaLumepad` (see the sourceSets block
+        // below — the CNSDK Java API is identical between devices per
+        // docs/red-magic-3d-explorer.md), but this device ships a newer CNSDK line on its
+        // system services (0.10.40/0.10.18/0.5.50 vs the Lume Pad 2's 0.8.20), so it needs
+        // its own matching connector: app/libs/redmagic and app/src/leiaRedmagic/jniLibs.
+        // Extracted from this device's own bundled ZTE/Leia system apps — see that same
+        // doc for how and why. Same no-redistribution rule as `leiaLumepad` applies.
+        leiaRedmagic {
+            dimension "panel"
+            buildConfigField "boolean", "LEIA_BUILD", "true"
+            applicationIdSuffix ".leia.redmagic"
+        }
+    }
+
+    sourceSets {
+        // leiaRedmagic reuses leiaLumepad's Java/manifest/res as-is (identical CNSDK Java
+        // API, identical PanelDriver/LeiaMediaSDK glue) — only the compiled connector
+        // (app/libs/<device>, app/src/<flavor>/jniLibs, .../assets/cnsdk.version) differs.
+        leiaRedmagic {
+            java.srcDirs += ['src/leiaLumepad/java']
+            manifest.srcFile 'src/leiaLumepad/AndroidManifest.xml'
+            res.srcDirs += ['src/leiaLumepad/res']
+        }
     }
 
     compileOptions {
@@ -96,9 +148,9 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix ".noirdebug"
-            resValue "string", "app_label", "Diana"
-            resValue "string", "app_label_root", "Diana (Root)"
-            resValue "string", "app_label_game", "Diana (Game)"
+            resValue "string", "app_label", "Lumelight 3D"
+            resValue "string", "app_label_root", "Lumelight 3D (Root)"
+            resValue "string", "app_label_game", "Lumelight 3D (Game)"
 
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -135,9 +187,9 @@ android {
             //
             // TL;DR: Leave the following line alone!
             applicationIdSuffix ".noir"
-            resValue "string", "app_label", "Artemis"
-            resValue "string", "app_label_root", "Artemis (Root)"
-            resValue "string", "app_label_game", "Artemis (Game)"
+            resValue "string", "app_label", "Lumelight 3D"
+            resValue "string", "app_label_root", "Lumelight 3D (Root)"
+            resValue "string", "app_label_game", "Lumelight 3D (Game)"
 
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -182,6 +234,14 @@ dependencies {
     implementation 'com.google.ai.edge.litert:litert:1.4.0'
     implementation 'com.google.ai.edge.litert:litert-gpu:1.4.0'
     implementation 'org.opencv:opencv:4.12.0'
+
+    // Leia's CNSDK, which drives the lightfield backlight and weaves the views to follow
+    // the viewer's face. It is not published to any repository, so the jar has to be put in
+    // app/libs by hand and only the leia-panel flavours look for it. See app/libs/README.md.
+    // Each device gets its own copy because the two ship different CNSDK lines on-device
+    // (see the leiaRedmagic flavour comment above) and the connectors are not interchangeable.
+    leiaLumepadImplementation fileTree(dir: 'libs', include: ['leia-cnsdk*.jar'])
+    leiaRedmagicImplementation fileTree(dir: 'libs/redmagic', include: ['leia-cnsdk*.jar'])
 
     // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'

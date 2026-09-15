@@ -1,84 +1,164 @@
-# Artemis Android
+<p align="center">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="Lumelight 3D">
+</p>
 
-Previously named Moonlight Noir
+<h1 align="center">Lumelight 3D</h1>
 
-An open source client for [Apollo](https://github.com/ClassicOldSong/Apollo)/[Sunshine](https://github.com/LizardByte/Sunshine).
+<p align="center">
+  Moonlight-based 3D streaming for Leia lightfield panels<br>
+  Leia Lume Pad 2 · Red Magic Tablet 3D Explorer Edition
+</p>
 
-Artemis Android will allow you to stream your collection of games from your Windows PC to your Android device,
-whether in your own home or over the internet.
+<p align="center">
+  <a href="#한국어">한국어</a> · <a href="#english">English</a>
+</p>
 
-Artemis is currently the best fork of Moonlight with loads of optimizations for office usage.
+---
 
-A more seamless experience with virtual display will be Artemis paired with [Apollo](https://github.com/ClassicOldSong/Apollo).
+## 한국어
 
-# Features
+[Artemis](https://github.com/ClassicOldSong/moonlight-android)(Moonlight Android 포크)에 나안 3D 출력을 붙인 앱입니다. PC 화면을 스트리밍하면서 태블릿에서 안경 없이 3D로 봅니다. Leia 라이트필드 패널을 쓰는 두 기기용 빌드가 있습니다.
 
-If you switch back to the main stream version, you'll be missing the following awesome features which are very unlikely to be added there:
+| 빌드 | 대상 기기 | 패키지 | 기기의 CNSDK |
+|---|---|---|---|
+| Lume Pad 2 (`leiaLumepad`) | Leia Lume Pad 2 | `com.limelight.leia.noirdebug` | 0.8.20 |
+| Red Magic (`leiaRedmagic`) | RedMagic Tablet 3D Explorer Edition (모델 `NP02J`, 코드네임 `K68`) | `com.limelight.leia.redmagic.noirdebug` | 0.10.x |
 
-1. Custom virtual buttons with import and export support.
-2. [Custom resolutions](https://github.com/moonlight-stream/moonlight-android/pull/1349).
-3. Custom bitrates.
-4. [Multiple mouse mode switching](https://github.com/moonlight-stream/moonlight-android/pull/1304) (normal mouse, [multi-touch](https://github.com/moonlight-stream/moonlight-android/pull/1364), touchpad, disabled, local cursor mode).
-5. Optimized virtual gamepad skins and free joystick.
-6. External monitor mode.
-7. Joycon D-pad support.
-8. Simplified performance information display.
-9. [Game back menu](https://github.com/moonlight-stream/moonlight-android/pull/1171).
-10. Custom shortcut commands.
-11. Easy soft keyboard switching.
-12. Portrait mode.
-13. Display on top mode, useful for foldable phones.
-14. [Virtual touchpad space and sensitivity adjustment](https://github.com/moonlight-stream/moonlight-android/issues/1348#issuecomment-2236344729) for playing right-click view games, such as Warcraft.
-15. Force use device's own vibration motor (in case your gamepad's vibration is not effective).
-16. Gamepad debugging page to view gamepad vibration and gyroscope information, as well as Android kernel version information.
-17. Trackpad tap/scrolling support
-18. Natural track pad mode with touch screen
-19. Non-QWERTY keyboard layout support
-20. Quick Meta key with physical BACK button
-21. Frame rate lock fix for some devices
-22. Video scale mode: Fit/Fill/Stretch
-23. View pan/zoom support
-24. Rotate screen in-game
-25. Add option to quit app directly
-26. Samsung DeX scrolling support
-27. Proper click/scroll/right-click for trackpad on generic Android tablet when using local cursor
-28. Virtual Display integration with [Apollo](https://github.com/ClassicOldSong/Apollo)
-29. Server Command integration with [Apollo](https://github.com/ClassicOldSong/Apollo)
-30. Clipboard sync (requires Apollo)
-31. SBS 3D for external Displays (Using AI MiDaS v2 Lite)
+두 기기 모두 위빙 본체·위빙 셰이더·얼굴추적은 기기에 이미 설치된 Leia CNSDK가 하고, 앱에는 그 버전에 맞는 얇은 연결부만 들어갑니다. 두 빌드는 패키지가 달라서 한 기기에 함께 설치할 수 있습니다.
 
-# Disclaimer
+### 핵심 기능
 
-This is the `go away` version of Moonlight Android.
+**3D Source: 무엇을 3D로 만들지 고릅니다.** 설정 › 비디오 설정 › 3D Settings에서 호스트가 보내는 영상의 종류를 고릅니다.
 
-I got kicked from Moonlight and Sunshine's Discord server literally for helping people out.
+- **Side by Side (host sends 3D)** — PC가 이미 SBS를 보낼 때(3D Vision, Geo-11, SBS 영상 등) 그대로 위빙합니다.
+- **2D to 3D (panel converter)** — 일반 2D 화면을 **기기의 Leia NPU 변환기**로 3D로 만듭니다. 앱에 따로 들어 있는 AI 모델이 없고, MiDaS보다 깊이감이 훨씬 좋습니다.
 
-This is what I got for finding a bug, opened an issue, getting no response, troubleshoot myself, fixed the issue myself, shared it by PR to the main repo hoping my efforts can help someone else during the maintainance gap.
+스트림 중 메뉴의 **Toggle 3D**로 언제든 2D와 3D를 오갈 수 있습니다. **Start Streams in 3D**를 켜면 연결되자마자 3D로 시작합니다. 권장 설정: **3D Output = Glasses-Free 3D**.
 
-Yes, I'm going away. Fixes and improvements on this fork are not necessarily be merged to the main repo either. I have also started [a fork of Sunshine called Apollo](https://github.com/ClassicOldSong/Apollo) and will add useful features that will never get merged by the main repo shortly. [Apollo](https://github.com/ClassicOldSong/Apollo) and [Moonlight Noir](https://github.com/ClassicOldSong/moonlight-android) will no longer be compatible with OG Sunshine and OG Moonlight eventually, but they'll work even better with much more carefully designed features.
+- **스트림은 선명하게, 변환은 가볍게.** 스트림은 패널 해상도(2560×1600) 그대로 받습니다. 변환기에는 패널이 한 눈에 보여줄 수 있는 크기(1920×1200)까지만 넘깁니다. 이미 넘긴 프레임은 다시 넘기지 않습니다. 그래서 변환 속도가 들어오는 프레임을 따라갑니다.
+- **3D Effect Strength**로 2D→3D의 깊이 강도를 조절합니다. 가운데 값이 Leia 기본값이고, 끝까지 올리면 두 배입니다. 초점(수렴)은 장면마다 자동으로 잡습니다.
+- **밝기.** 3D에서는 화면을 최대 밝기로 올리고, 3D를 끄면 원래 밝기로 돌립니다. 이 패널들은 3D를 나와도 밝게 남는 일이 있어서, 앱이 시스템 밝기를 한 번 다시 써 넣습니다. 처음 3D를 켤 때 **「시스템 설정 수정」 권한**을 한 번 묻습니다. 밝기에만 쓰며, 허용하지 않아도 3D는 됩니다.
+- **얼굴추적 안정성.** 얼굴을 잠깐 놓쳐도 3D가 풀리지 않습니다. 홈에 나갔다 돌아와도 추적이 다시 붙습니다.
+- **화면 비율.** 16:9 스트림은 16:10 패널에서 늘어나지 않고 위아래에 띠가 생깁니다. SBS는 패널 전체로 펴집니다. 세로로 들고 시작해도 비율이 틀어지지 않습니다.
+- 비디오 설정에 **3D Settings** 그룹이 따로 있습니다. 해상도·FPS·비트레이트 · 3D Settings · 고급 순서입니다.
+- 커스텀 해상도에 입력한 값이 실제 스트림 해상도로 적용됩니다.
 
-The main repo had stayed silent for 5 months, with nobody actually responding to issues, and people are getting totally no help besides the limited FAQ in their Discord server. I tried to answer issues and questions, solve problems within my ablilty but I got kicked out just for helping others.
+Red Magic 기기별 특이사항은 [docs/red-magic-3d-explorer.md](docs/red-magic-3d-explorer.md)에 정리돼 있습니다.
 
-**PRs for feature improvements are welcomed here unlike the main repo, your ideas are more likely to be appreciated and your efforts are actually being respected. We welcome people who can and willing to share their efforts, helping yourselves and other people in need.**
+### 설치
 
-**Update**: They have contacted me and apologized for this incident, but the fact it **happened** still motivated me to start my own fork.
+APK를 배포하지 않습니다. Leia CNSDK가 들어가야 하는데, CNSDK는 Leia의 독점 SDK라 재배포할 수 없습니다. 아래처럼 자신의 기기에서 CNSDK를 준비해서 직접 빌드하세요.
 
-## Downloads
-* [Download APK directly](https://github.com/ClassicOldSong/moonlight-android/releases)
-* [Use Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.limelight.noir%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FClassicOldSong%2Fmoonlight-android%22%2C%22author%22%3A%22ClassicOldSong%22%2C%22name%22%3A%22Artemis%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22nonRoot%5C%22%2C%5C%22matchGroutToUse%5C%22%3A%5C%22%241%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v(.%2B)%5C%22%7D%22%7D) (recommended)
+### 직접 빌드
 
-## Building
-* Install Android Studio and the Android NDK
-* Run ‘git submodule update --init --recursive’ from within moonlight-android/
-* In moonlight-android/, create a file called ‘local.properties’. Add an ‘ndk.dir=’ property to the local.properties file and set it equal to your NDK directory.
-* Build the APK using Android Studio or gradle
+필요한 것: JDK 17, Android SDK와 NDK, `git submodule update --init --recursive`.
 
-## Authors
+- **경로에 공백이 없어야 합니다.** NDK 빌드가 공백이 있는 경로를 처리하지 못합니다. 프로젝트가 공백이 있는 경로에 있으면 공백 없는 경로로 junction(심볼릭 링크)을 만들어 거기서 빌드하세요.
+- **기기별 CNSDK 연결부가 필요합니다.** 저장소에는 들어 있지 않습니다(`.gitignore`로 막혀 있습니다). 두 기기의 CNSDK 코어 버전이 달라(Lume Pad 2는 0.8.20, Red Magic은 0.10.x) 연결부도 따로 준비해야 합니다.
 
-* [Cameron Gutman](https://github.com/cgutman)  
-* [Diego Waxemberg](https://github.com/dwaxemberg)  
-* [Aaron Neyer](https://github.com/Aaronneyer)  
-* [Andrew Hennessy](https://github.com/yetanothername)
+  ```
+  app/libs/leia-cnsdk.jar                                   (Lume Pad 2용, 0.8.20)
+  app/src/leiaLumepad/jniLibs/arm64-v8a/libleiaSDK-jni.so
+  app/src/leiaLumepad/jniLibs/arm64-v8a/libleiaCore-loader.so
+  app/src/leiaLumepad/assets/cnsdk.version
 
-Moonlight is the work of students at [Case Western](http://case.edu) and was
-started as a project at [MHacks](http://mhacks.org).
+  app/libs/redmagic/leia-cnsdk.jar                          (Red Magic용, 0.10.x)
+  app/src/leiaRedmagic/jniLibs/arm64-v8a/libleiaSDK-jni.so
+  app/src/leiaRedmagic/jniLibs/arm64-v8a/libleiaCore-loader.so
+  app/src/leiaRedmagic/assets/cnsdk.version
+  ```
+
+  기기에는 Leia 시스템 앱(`com.leialoft.display.config`, `com.leia.headtrackingservice`, `com.leiainc.media.service`)이 있어야 합니다. 두 기기 모두 기본으로 들어 있습니다.
+
+```
+./gradlew assembleNonRoot_gameLeiaLumepadDebug    # Lume Pad 2
+./gradlew assembleNonRoot_gameLeiaRedmagicDebug   # Red Magic
+```
+
+APK는 `app/build/outputs/apk/nonRoot_gameLeiaLumepad/debug/`, `app/build/outputs/apk/nonRoot_gameLeiaRedmagic/debug/`에 나옵니다.
+
+CNSDK 연동에서 막혔던 곳, 실제 API, 증상별 원인은 [docs/lume-pad-2-cnsdk-notes.md](docs/lume-pad-2-cnsdk-notes.md)에 정리돼 있습니다.
+
+### 알려진 문제
+
+- **3D Convergence · 3D Eye Balance · Swap Left/Right Eye** 는 아무 동작도 하지 않습니다. 변환기는 초점을 장면마다 알아서 잡고, SBS 모드에서는 CNSDK가 좌우를 직접 가르기 때문입니다.
+- Leia 3D 앱은 **한 번에 하나만** 띄우세요. 다른 3D 앱이 카메라를 쥐고 있으면 얼굴추적이 붙지 않아 평면으로 보입니다.
+
+---
+
+## English
+
+An [Artemis](https://github.com/ClassicOldSong/moonlight-android) (Moonlight Android fork) build with glasses-free 3D output for Leia lightfield panels. Stream your PC and watch it in 3D on the tablet, no glasses. There are two device-specific builds.
+
+| Build | Device | Package | Device's CNSDK |
+|---|---|---|---|
+| Lume Pad 2 (`leiaLumepad`) | Leia Lume Pad 2 | `com.limelight.leia.noirdebug` | 0.8.20 |
+| Red Magic (`leiaRedmagic`) | RedMagic Tablet 3D Explorer Edition (model `NP02J`, codename `K68`) | `com.limelight.leia.redmagic.noirdebug` | 0.10.x |
+
+On both, the weaving core, the weaving shader and face tracking are done by the CNSDK already installed on the device; the app carries only a thin connector matching that version. The two builds have different package names, so both can be installed on one device.
+
+### Key features
+
+**3D Source.** In Settings › Video Settings › 3D Settings, pick what kind of picture the host is sending.
+
+- **Side by Side (host sends 3D)** — when the PC already sends SBS (3D Vision, Geo-11, SBS video), it is woven as it arrives.
+- **2D to 3D (panel converter)** — ordinary 2D is turned into 3D by the **device's Leia NPU converter**. The app carries no AI model of its own, and the depth is much better than MiDaS.
+
+**Toggle 3D** in the in-stream menu switches between 2D and 3D at any time. With **Start Streams in 3D** on, a stream starts in 3D as soon as it connects. Recommended: **3D Output = Glasses-Free 3D**.
+
+- **Sharp stream, light conversion.** The stream arrives at the panel's full resolution (2560×1600). The converter is only fed what the panel can show per eye (1920×1200), and a frame it has already been given is not sent again. That lets the conversion keep pace with the incoming frames.
+- **3D Effect Strength** sets the depth of 2D→3D. The middle is Leia's default; all the way up is double. Convergence is set automatically, scene by scene.
+- **Brightness.** The screen goes to full brightness in 3D and back to your brightness when 3D ends. These panels can stay bright after leaving 3D, so the app writes the system brightness once more to bring it back. The first time 3D starts, it asks once for the **Modify system settings** permission. It is used only for brightness, and 3D works without it.
+- **Face tracking that holds.** Losing your face for a moment no longer drops out of 3D, and tracking comes back after a trip to the home screen.
+- **Aspect ratio.** A 16:9 stream is letterboxed on the 16:10 panel instead of stretched. SBS fills the whole panel. Starting in portrait no longer skews the picture.
+- Video Settings has its own **3D Settings** group, in the order Resolution · FPS · Bitrate · 3D Settings · Advanced.
+- A custom resolution you enter is the resolution actually streamed.
+
+Red Magic-specific notes are in [docs/red-magic-3d-explorer.md](docs/red-magic-3d-explorer.md).
+
+### Install
+
+No APK is distributed. It needs Leia CNSDK, which is Leia's proprietary SDK and cannot be redistributed. Prepare CNSDK from your own device as below and build it yourself.
+
+### Building
+
+You need JDK 17, the Android SDK and NDK, and `git submodule update --init --recursive`.
+
+- **The path must not contain spaces.** The NDK build cannot handle them. If the project sits under a path with spaces, create a junction (symbolic link) at a path without spaces and build from there.
+- **You need a matching CNSDK connector per device.** Neither is in the repository (`.gitignore` blocks them). The two devices run different CNSDK core lines (0.8.20 on the Lume Pad 2, 0.10.x on Red Magic), so each needs its own connector:
+
+  ```
+  app/libs/leia-cnsdk.jar                                   (Lume Pad 2, 0.8.20)
+  app/src/leiaLumepad/jniLibs/arm64-v8a/libleiaSDK-jni.so
+  app/src/leiaLumepad/jniLibs/arm64-v8a/libleiaCore-loader.so
+  app/src/leiaLumepad/assets/cnsdk.version
+
+  app/libs/redmagic/leia-cnsdk.jar                          (Red Magic, 0.10.x)
+  app/src/leiaRedmagic/jniLibs/arm64-v8a/libleiaSDK-jni.so
+  app/src/leiaRedmagic/jniLibs/arm64-v8a/libleiaCore-loader.so
+  app/src/leiaRedmagic/assets/cnsdk.version
+  ```
+
+  The device needs the Leia system apps (`com.leialoft.display.config`, `com.leia.headtrackingservice`, `com.leiainc.media.service`). Both devices ship with all three.
+
+```
+./gradlew assembleNonRoot_gameLeiaLumepadDebug    # Lume Pad 2
+./gradlew assembleNonRoot_gameLeiaRedmagicDebug   # Red Magic
+```
+
+The APKs land in `app/build/outputs/apk/nonRoot_gameLeiaLumepad/debug/` and `app/build/outputs/apk/nonRoot_gameLeiaRedmagic/debug/`.
+
+Where the CNSDK integration got stuck, the real API and causes by symptom are written up (in Korean) in [docs/lume-pad-2-cnsdk-notes.md](docs/lume-pad-2-cnsdk-notes.md).
+
+### Known issues
+
+- **3D Convergence · 3D Eye Balance · Swap Left/Right Eye** do nothing. The converter sets convergence per scene, and in SBS mode CNSDK splits the eyes itself.
+- Run **one** Leia 3D app at a time. If another 3D app holds the camera, face tracking cannot attach and the picture looks flat.
+
+---
+
+## Credits · License
+
+- Based on [Artemis](https://github.com/ClassicOldSong/moonlight-android) by ClassicOldSong and [Moonlight](https://github.com/moonlight-stream/moonlight-android). Its original README is in [docs/artemis-upstream-readme.md](docs/artemis-upstream-readme.md).
+- Licensed under GPL-3.0 ([LICENSE.txt](LICENSE.txt)).
+- Leia CNSDK and the Leia media service belong to Leia Inc. and are **not included** in this repository.

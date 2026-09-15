@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Extras the leia flavour needs, merged into the main manifest. They are kept here rather
+    than in src/main so the lenticular build asks for no camera and declares no interest in
+    Leia's apps, neither of which it has any use for.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- CNSDK steers the panel's views from where it sees the viewer's face, using the
+         front cameras. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Leaving 3D leaves the panel at the full brightness it was held at, until something
+         writes the system brightness again; moving the slider by hand is what brings it
+         back. This lets the app do that one write itself. It is granted by the user in
+         system settings, not at install, and without it the only thing lost is that write. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
+        CNSDK looks both of these up as it starts, to find the head tracking service and to
+        read the panel's calibration. From Android 11 an app cannot see another package
+        unless it says so here, and CNSDK's native code does not clear the
+        NameNotFoundException it gets when it cannot: it goes straight on to NewStringUTF
+        with the exception still pending, which CheckJNI turns into an abort. Without these
+        two lines the SDK takes the app down while it is still initialising.
+    -->
+    <queries>
+        <!-- The 2D-to-3D engine and its models live in this system app. Without being able
+             to look it up there is no path to hand DexClassLoader, and the conversion is
+             simply reported as unavailable. -->
+        <package android:name="com.leiainc.media.service" />
+        <package android:name="com.leia.headtrackingservice" />
+        <package android:name="com.leialoft.display.config" />
+    </queries>
+
+</manifest>

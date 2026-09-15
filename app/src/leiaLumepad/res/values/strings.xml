@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Wording for the leia flavour. The shared strings describe a weave this app draws into
+    the screen columns itself, which is not what happens on a lightfield panel: there the
+    app supplies two views and the panel's own SDK builds its eight from them, steered by
+    where it sees the viewer's face. Same settings, so the same keys, but they mean
+    something different enough to be worth saying plainly.
+-->
+<resources>
+
+    <string name="title_stereo_output_mode">3D Output</string>
+    <string name="summary_stereo_output_mode">Side-by-Side feeds 3D glasses. Glasses-Free hands both eyes to the panel, which builds its own views from them and follows your face as you move.</string>
+
+    <string name="stereo_output_sbs">Side-by-Side (3D glasses)</string>
+    <string name="stereo_output_interlaced_2v">Glasses-Free 3D</string>
+
+
+    <!-- On this panel the render mode is really a question about the stream: is it already
+         two eyes side by side, or one picture for the panel's converter to make 3D from. -->
+    <string name="title_render_mode">3D Source</string>
+    <string name="summary_render_mode">What the host is sending. Side by side is woven as it arrives. 2D is turned into 3D by the converter built into the panel. The 3D toggle in the stream menu still switches between flat and 3D either way.</string>
+    <string name="render_mode_2d">Side by Side (host sends 3D)</string>
+    <string name="render_mode_3d_sbs">2D to 3D (panel converter)</string>
+
+
+    <string name="leia_brightness_permission_title">Permission for brightness control</string>
+    <string name="leia_brightness_permission_message">3D runs the screen at full brightness. On this panel it can stay that bright after the stream ends, until the brightness is changed again. Allowing this app to modify system settings lets it put your brightness back by itself when you leave 3D. It only rewrites the brightness you already have.</string>
+    <string name="leia_brightness_permission_open">Open settings</string>
+    <string name="leia_brightness_permission_later">Not now</string>
+</resources>

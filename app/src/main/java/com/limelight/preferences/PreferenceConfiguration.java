@@ -269,6 +269,15 @@ public class PreferenceConfiguration {
 
     public float convergence_ratio;
     public float balance_shift;
+
+    /** How the two eyes are laid out: 0 = side-by-side, 1 = 2-view weave, 2 = 4-view weave. */
+    public int stereoOutputMode;
+    /** Column phase of the weave. Which column the left eye starts on is a property of the panel. */
+    public int interlaceViewOffset;
+    /** Set when the panel hands the left eye's columns to the right eye. */
+    public boolean interlaceSwapEyes;
+    /** Turns the weave on as soon as the stream connects, instead of waiting for the gesture. */
+    public boolean autoEnable3D;
     public boolean enablePerfOverlay;
     public boolean enablePerfLogging;
     //简化版性能信息
@@ -389,6 +398,11 @@ public class PreferenceConfiguration {
 
     private static final String CONVERGENCE_RATIO = "convergence_ratio";
     private static final String BALANCE_SHIFT = "balance_shift";
+
+    private static final String STEREO_OUTPUT_MODE = "stereo_output_mode_list";
+    private static final String INTERLACE_VIEW_OFFSET = "interlace_view_offset";
+    private static final String INTERLACE_SWAP_EYES = "checkbox_interlace_swap_eyes";
+    private static final String AUTO_ENABLE_3D = "checkbox_auto_enable_3d";
     private static final String NUMBER_PAN_OFFSET_X = "number_pan_offset_x";
     private static final String NUMBER_PAN_OFFSET_Y = "number_pan_offset_y";
 
@@ -1035,6 +1049,11 @@ private static int getFramePacingValue(Context context) {
         config.parallax_depth = prefs.getInt(PARALLAX_DEPTH, 50) / 100f;
         config.convergence_ratio = prefs.getInt(CONVERGENCE_RATIO, 50) / 100f;
         config.balance_shift = prefs.getInt(BALANCE_SHIFT, 50) / 100f;
+
+        config.stereoOutputMode = Integer.parseInt(prefs.getString(STEREO_OUTPUT_MODE, "0"));
+        config.interlaceViewOffset = prefs.getInt(INTERLACE_VIEW_OFFSET, 0);
+        config.interlaceSwapEyes = prefs.getBoolean(INTERLACE_SWAP_EYES, false);
+        config.autoEnable3D = prefs.getBoolean(AUTO_ENABLE_3D, true);
 
         return config;
     }

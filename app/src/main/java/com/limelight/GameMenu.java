@@ -248,6 +248,12 @@ public class GameMenu implements Game.GameMenuCallbacks {
             options.add(new MenuOption(getString(R.string.game_menu_select_mouse_mode), true, () -> game.selectMouseMode(dialogScreenContext)));
         }
         
+        // The three finger hold does this too, but only where multi-touch gestures are
+        // switched on, so the menu is the reliable way to reach it.
+        if (game.is3DAvailable()) {
+            options.add(new MenuOption(getString(R.string.game_menu_toggle_3d), true, game::toggle3DMode));
+        }
+
         options.add(new MenuOption(getString(R.string.game_menu_toggle_hud), true, game::toggleHUD));
         options.add(new MenuOption(getString(R.string.game_menu_toggle_floating_button), true, game::toggleFloatingButtonVisibility));
         options.add(new MenuOption(getString(R.string.game_menu_toggle_keyboard_model), true, game::toggleKeyboardController));

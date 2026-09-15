@@ -172,6 +172,16 @@
         <item>1</item>
         <item>2</item>
     </string-array>
+    <string-array name="stereo_output_mode_names">
+        <item>@string/stereo_output_sbs</item>
+        <item>@string/stereo_output_interlaced_2v</item>
+        <item>@string/stereo_output_interlaced_4v</item>
+    </string-array>
+    <string-array name="stereo_output_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
     <string-array name="mouse_mode_names">
         <item>@string/mouse_mode_multi_touch</item>
         <item>@string/mouse_mode_absolute_touch</item>

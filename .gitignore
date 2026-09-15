@@ -47,3 +47,16 @@ app/.externalNativeBuild/
 
 # agent files
 AGENTS.md
+
+# build logs
+build*.log
+
+# Leia's CNSDK, used only by the leia-panel flavours (leiaLumepad, leiaRedmagic). Licensed to
+# Leia's partners rather than published, so it is supplied locally and must never be
+# committed or redistributed -- see app/libs/README.md. The .so files are already
+# covered by the jniLibs rule above.
+app/libs/leia-cnsdk*.jar
+app/libs/redmagic/
+app/libs/*.bak
+app/src/leiaLumepad/assets/
+app/src/leiaRedmagic/assets/

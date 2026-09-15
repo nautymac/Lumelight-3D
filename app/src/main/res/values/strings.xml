@@ -185,6 +185,7 @@
     <!-- Preferences -->
     <string name="category_general_settings">General Settings</string>
     <string name="category_video_settings">Video Settings</string>
+    <string name="category_3d_settings">3D Settings</string>
     <string name="title_resolution_list">Video resolution</string>
     <string name="summary_resolution_list">Increase to improve image clarity. Decrease for better performance on lower end devices and slower networks.</string>
     <string name="title_native_res_dialog">Native Resolution Warning</string>
@@ -369,6 +370,7 @@
     <!-- In Game menu -->
     <string name="game_menu_toggle_keyboard">Show soft keyboard</string>
     <string name="game_menu_toggle_hud">Toggle Performance Overlay</string>
+    <string name="game_menu_toggle_3d">Toggle 3D</string>
     <string name="game_menu_toggle_floating_button">Toggle Floating Button</string>
     <string name="game_menu_select_mouse_mode">Select Mouse mode</string>
     <string name="game_menu_select_steam_mode">Select Stream mode</string>
@@ -573,6 +575,21 @@
     <string name="render_mode_2d">Default 2D</string>
     <string name="render_mode_3d_sbs">AI SBS 3D</string>
     <string name="render_mode_3d_sbs_movie">AI SBS 3D Movie (Synced)</string>
+
+    <!-- Glasses-free 3D output -->
+    <string name="title_stereo_output_mode">3D Output Format</string>
+    <string name="summary_stereo_output_mode">Side-by-Side sends both eyes in one frame and lets the display sort them out, which is what the ProMa King does with its own lens, and what 3D glasses and projectors take. The interlaced modes weave the eyes into the screen columns here instead, for a panel that expects that: 2 views, or 4 for the RED Hydrogen One.</string>
+    <string name="stereo_output_sbs">Side-by-Side (ProMa, 3D glasses)</string>
+    <string name="stereo_output_interlaced_2v">Interlaced — 2 views (glasses-free)</string>
+    <string name="stereo_output_interlaced_4v">Interlaced — 4 views (glasses-free)</string>
+    <string name="title_interlace_view_offset">Column Alignment</string>
+    <string name="summary_interlace_view_offset">Shifts the weave by one column at a time. Raise it until the picture snaps into depth instead of looking doubled.</string>
+    <string name="title_interlace_swap_eyes">Swap Left/Right Eye</string>
+    <string name="summary_interlace_swap_eyes">Turn on if depth looks inverted, with near objects appearing far away.</string>
+    <string name="title_auto_enable_3d">Start Streams in 3D</string>
+    <string name="summary_auto_enable_3d">Turns 3D on as soon as a stream connects. Leave it off to start in 2D and switch over from the stream menu.</string>
+    <string name="toast_3d_enabled">Glasses-free 3D on</string>
+    <string name="toast_3d_disabled">Glasses-free 3D off</string>
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
     <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>

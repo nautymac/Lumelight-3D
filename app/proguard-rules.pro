@@ -46,3 +46,24 @@
 # MPAndroidChart
 -keep class com.github.mikephil.charting.** { *; }
 -dontwarn com.github.mikephil.charting.**
+
+# Leia's CNSDK, used by the leia flavour. Most of it is reached from libleiaSDK.so through
+# JNI rather than from Java, and R8 cannot see those references: left to itself it strips
+# the head tracking and interlacing classes as unused and the SDK crashes as soon as native
+# code looks for them. Keep the lot, members included, since JNI resolves by name.
+# Harmless in the lenticular flavour, which has no com.leia classes to keep.
+-keep class com.leia.** { *; }
+-keepclassmembers class com.leia.** { *; }
+-dontwarn com.leia.**
+# Leia's media SDK, used by the leia flavour for 2D-to-3D conversion. These are declarations
+# only -- the implementation lives in the device's com.leiainc.media.service APK and is
+# loaded into this process at runtime through DexClassLoader. That loader's parent is this
+# app's own, so class resolution is parent-first and the service's code binds to the
+# interfaces kept here. It finds them by name, which R8 cannot see, so renaming any of them
+# leaves the implementation unable to resolve what it was compiled against.
+#
+# The loader class itself has to keep its name too: model code inside the service calls back
+# to LeiaMediaSDK.getAppWrapper() to find out where its native libraries live.
+-keep class com.leiainc.** { *; }
+-keepclassmembers class com.leiainc.** { *; }
+-dontwarn com.leiainc.**

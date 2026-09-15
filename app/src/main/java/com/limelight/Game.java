@@ -46,10 +46,12 @@ import com.limelight.ui.StreamContainer;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ExternalDisplayControlActivity;
 import com.limelight.utils.MouseModeOption;
+import com.limelight.utils.PanelDriver;
 import com.limelight.utils.PanZoomHandler;
 import com.limelight.utils.PerformanceDataTracker;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
+import com.limelight.utils.Stereo3DRenderer;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
@@ -164,9 +166,25 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
     private static final int FOUR_FINGER_TAP_THRESHOLD = 300;
+
+    // Holding three fingers toggles glasses-free 3D, matching how Leia's own Moonlight3D
+    // does it. It has to outlast THREE_FINGER_TAP_THRESHOLD so it cannot be confused with
+    // the three finger tap that toggles the keyboard.
+    private static final int THREE_FINGER_HOLD_THRESHOLD = 1000;
     private static final int FIVE_FINGER_TAP_THRESHOLD = 300;
 
     private Handler timerHandler;
+
+    // Non-null only on a panel that drives its own optics, which today means a Leia
+    // lightfield device in the leia flavour. Panels with a permanently bonded lens, such as
+    // the ProMa King, weave in the shader and leave this null.
+    private PanelDriver leiaDisplay;
+    private Runnable threeFingerHoldRunnable;
+
+    // Whether the stream is being shown in 3D. Kept here rather than read back from the
+    // renderer, because on a panel that weaves its own views the renderer's flag stays off
+    // even while 3D is running.
+    private boolean is3DEnabled;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -344,6 +362,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         instance = this;
         timerHandler = new Handler(Looper.getMainLooper());
+
+        // Null on anything that is not a Leia lightfield device, including the ProMa King,
+        // whose lens is always on and needs no backlight control.
+        leiaDisplay = PanelDriver.get(this);
 
         UiHelper.setLocale(this);
 
@@ -1410,6 +1432,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
         inputCaptureProvider.onWindowFocusChanged(hasFocus);
+
+        if (leiaDisplay != null) {
+            // The driver drops the backlight by itself while the app is not in front, so it
+            // only needs telling that focus moved.
+            leiaDisplay.onWindowFocusChanged(hasFocus);
+        }
     }
 
     private boolean isRefreshRateEqualMatch(float refreshRate) {
@@ -1624,6 +1652,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             LimeLog.info("scaleMode-->"+prefConfig.videoScaleMode);
         }
 
+        // The panel's source size is not set here: StreamContainer owns it, because only it
+        // knows whether the frame carries one view or two eyes side by side.
+
         // Set the desired refresh rate that will get passed into setFrameRate() later
         desiredRefreshRate = displayRefreshRate;
 
@@ -1702,6 +1733,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     protected void onDestroy() {
         super.onDestroy();
 
+        // The panel's SDK was built with this activity and cannot outlive it: kept past here
+        // it hands the next stream a reference to something destroyed, and quietly refuses to
+        // track faces.
+        PanelDriver.shutdown();
+
         instance = null;
         timerHandler.removeCallbacksAndMessages(null);
 
@@ -1743,7 +1779,27 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (leiaDisplay != null) {
+            leiaDisplay.onResume();
+        }
+        if (streamContainer != null) {
+            streamContainer.onResume();
+        }
+    }
+
+    @Override
     protected void onPause() {
+        if (leiaDisplay != null) {
+            leiaDisplay.set3DMode(false);
+            leiaDisplay.onPause();
+        }
+        if (streamContainer != null) {
+            streamContainer.onPause();
+        }
+
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
             if (controllerHandler != null) {
@@ -1777,6 +1833,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         if (conn != null) {
             int videoFormat = decoderRenderer.getActiveVideoFormat();
+
+            // Normally surfaceDestroyed has already told the decoder to stand down by now. A
+            // panel that takes the stream into a texture of its own never calls it, so the
+            // decoder would go on taking frames while the connection winds down on its thread,
+            // and onDestroy tears the panel's texture out from under it: the next frame fails
+            // with CodecException -19, which is counted as a decoder crash and reported as an
+            // incompatible decoder the next time the app opens. Stand it down here instead.
+            decoderRenderer.prepareForStop();
 
             displayedFailureDialog = true;
             stopConnection();
@@ -3290,10 +3354,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (eventAction == MotionEvent.ACTION_POINTER_DOWN) {
             if (pointerCount == 3) {
                 threeFingerDownTime = event.getEventTime();
+                scheduleThreeFingerHold();
             } else if (pointerCount == 4) {
+                cancelThreeFingerHold();
                 threeFingerDownTime = 0;
                 fourFingerDownTime = event.getEventTime();
             } else if (pointerCount == 5) {
+                cancelThreeFingerHold();
                 threeFingerDownTime = 0;
                 fourFingerDownTime = 0;
                 fiveFingerDownTime = event.getEventTime();
@@ -3303,6 +3370,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         switch (eventAction) {
             case MotionEvent.ACTION_POINTER_UP:
             case MotionEvent.ACTION_UP:
+                cancelThreeFingerHold();
                 long currentEventTime = event.getEventTime();
                 if (pointerCount >= 5 && fiveFingerDownTime > 0 && currentEventTime - fiveFingerDownTime < FIVE_FINGER_TAP_THRESHOLD) {
                     if(prefConfig.enableBackMenu) {
@@ -3331,6 +3399,66 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         cancelStaleTouchState(event, view);
         return true;
+    }
+
+    /**
+     * Starts the timer that turns a sustained three finger touch into a 3D toggle. A short
+     * three finger tap lifts well before this fires and still reaches the keyboard toggle.
+     */
+    private void scheduleThreeFingerHold() {
+        cancelThreeFingerHold();
+
+        threeFingerHoldRunnable = () -> {
+            threeFingerHoldRunnable = null;
+
+            // Consume the gesture so lifting the fingers does not also toggle the keyboard.
+            threeFingerDownTime = 0;
+
+            toggle3DMode();
+        };
+        timerHandler.postDelayed(threeFingerHoldRunnable, THREE_FINGER_HOLD_THRESHOLD);
+    }
+
+    private void cancelThreeFingerHold() {
+        if (threeFingerHoldRunnable != null) {
+            timerHandler.removeCallbacks(threeFingerHoldRunnable);
+            threeFingerHoldRunnable = null;
+        }
+    }
+
+    /**
+     * Switches the glasses-free 3D weave on and off mid-stream.
+     *
+     * On a Leia panel the backlight has to follow the weave, otherwise the interlaced frame
+     * just looks like a blurred 2D picture.
+     */
+    /**
+     * @return whether this stream can be shown in 3D at all, so the menu only offers the
+     *         toggle when there is something to toggle.
+     */
+    public boolean is3DAvailable() {
+        return prefConfig.stereoOutputMode != 0
+                && (leiaDisplay != null || prefConfig.renderMode != 0);
+    }
+
+    public void toggle3DMode() {
+        set3DMode(!is3DEnabled);
+
+        Toast.makeText(this, is3DEnabled
+                ? R.string.toast_3d_enabled
+                : R.string.toast_3d_disabled, Toast.LENGTH_SHORT).show();
+    }
+
+    private void set3DMode(boolean enable) {
+        is3DEnabled = enable;
+
+        // On a panel that weaves its own views the shader must stay out of it, so only the
+        // driver is told. Everywhere else this flag is what turns the shader weave on.
+        Stereo3DRenderer.isInterlaced = enable && !Stereo3DRenderer.panelOwnsInterlacing;
+
+        if (leiaDisplay != null) {
+            leiaDisplay.set3DMode(enable);
+        }
     }
 
     private void cancelStaleTouchState(MotionEvent event, View view) {
@@ -3671,6 +3799,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 connected = true;
                 connecting = false;
                 updatePipAutoEnter();
+
+                // The stream is live, so the weave can come on without garbling the
+                // connection UI that was on screen until now.
+                if (prefConfig.autoEnable3D && prefConfig.stereoOutputMode != 0) {
+                    set3DMode(true);
+                }
 
                 // Hide the mouse cursor now after a short delay.
                 // Doing it before dismissing the spinner seems to be undone

@@ -81,6 +81,105 @@ public class ShaderUtils {
 
 
 
+    /**
+     * Column-interleaved variant of {@link #FRAGMENT_SHADER_3D}, for autostereoscopic
+     * (glasses-free) panels such as the Lume Pad 2 or the ProMa King.
+     *
+     * FRAGMENT_SHADER_3D is drawn twice into the left and right halves of the viewport,
+     * which produces side-by-side output for 3D glasses. Those panels instead expect the
+     * two eyes woven together column by column, so this variant is drawn once over the
+     * full viewport and picks the eye per screen column:
+     *
+     *   u_numViews = 2.0  ->  L R L R ...      2-view lenticular (Lume Pad 2, ProMa King)
+     *   u_numViews = 4.0  ->  L L R R L L ...  4-view lightfield (RED Hydrogen One)
+     *
+     * u_viewOffset (column phase) and u_swapEyes depend on how the lens sheet is bonded
+     * to the panel and differ per device, so they are calibration values exposed in the
+     * settings rather than constants.
+     *
+     * Note the precision: gl_FragCoord.x must be exact for the column parity to hold, and
+     * a mediump float is only exact to 2048 on fp16 GPUs, which would break the weave on a
+     * 2560px wide panel. Everything therefore runs at highp where the GPU offers it.
+     */
+    public static final String FRAGMENT_SHADER_3D_INTERLACED =
+            "#extension GL_OES_EGL_image_external : require\n" +
+                    "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                    "precision highp float;\n" +
+                    "#else\n" +
+                    "precision mediump float;\n" +
+                    "#endif\n" +
+                    "varying vec2 v_TexCoord;\n" +
+                    "uniform samplerExternalOES s_ColorTexture;\n" +
+                    "uniform sampler2D s_DepthTexture;\n" +
+                    "uniform float u_parallax;\n" +
+                    "uniform float u_convergence;\n" +
+                    "uniform float u_shift;\n" +
+                    "uniform bool u_debugMode;\n" +
+                    "uniform float u_numViews;\n" +
+                    "uniform float u_viewOffset;\n" +
+                    "uniform float u_swapEyes;\n" +
+                    "\n" +
+                    "void main() {\n" +
+                    "  // ---------------- Pick this column's eye -----------------\n" +
+                    "  float viewId = mod(floor(gl_FragCoord.x) + u_viewOffset, u_numViews);\n" +
+                    "  float rightSel = step(u_numViews * 0.5, viewId);\n" +
+                    "  rightSel = abs(rightSel - u_swapEyes);\n" +
+                    "  float parallax = mix(-abs(u_parallax), abs(u_parallax), rightSel);\n" +
+                    "\n" +
+                    "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
+                    "\n" +
+                    "  // Remap depth into symmetric range around convergence\n" +
+                    "  float depthDiff;\n" +
+                    "  if (depth < u_convergence) {\n" +
+                    "    depthDiff = (depth - u_convergence) / u_convergence; // [-1,0]\n" +
+                    "  } else {\n" +
+                    "    depthDiff = (depth - u_convergence) / (1.0 - u_convergence); // [0,1]\n" +
+                    "  }\n" +
+                    "\n" +
+                    "  float parallax_magnitude = abs(parallax);\n" +
+                    "  float ai_shift = parallax_magnitude * depthDiff;\n" +
+                    "\n" +
+                    "  // --- Dynamische Vignette ---\n" +
+                    "  float edgeWidth = 0.01;\n" +
+                    "  float depthLeft  = texture2D(s_DepthTexture, vec2(edgeWidth, 0.5)).r;\n" +
+                    "  float depthRight = texture2D(s_DepthTexture, vec2(1.0 - edgeWidth, 0.5)).r;\n" +
+                    "  float ai_shift_left  = parallax * (depthLeft  - 0.5);\n" +
+                    "  float ai_shift_right = parallax * (depthRight - 0.5);\n" +
+                    "  float maxEdgeShift = max(abs(ai_shift_left), abs(ai_shift_right));\n" +
+                    "  bool isLeftEye = (parallax < 0.0);\n" +
+                    "  float isLeftEyeIndicator = isLeftEye ? -1.0 : 1.0;\n" +
+                    "  float vignette_start = mix(0.7, 1.0, clamp(maxEdgeShift / 0.5, 0.0, 1.0));\n" +
+                    "  const float vignette_end = 1.0;\n" +
+                    "\n" +
+                    "  if ((depth - u_convergence) < 0.0) {\n" +
+                    "    ai_shift *= isLeftEye ? u_shift : (1.0-u_shift);\n" +
+                    "  } else {\n" +
+                    "    ai_shift *= isLeftEye ? (1.0-u_shift) : u_shift;\n" +
+                    "  }\n" +
+                    "\n" +
+                    "  float h_dist = pow(abs(v_TexCoord.x - 0.5) * 2.0, 1.5);\n" +
+                    "  float vignette_factor = 1.0 - smoothstep(vignette_start, vignette_end, h_dist);\n" +
+                    "  float final_shift = ai_shift * vignette_factor;\n" +
+                    "\n" +
+                    "  // ---------------- Backward Warping nur horizontal -----------------\n" +
+                    "  vec2 srcUV = vec2(v_TexCoord.x - final_shift * isLeftEyeIndicator, v_TexCoord.y);\n" +
+                    "  vec4 shiftedColor = texture2D(s_ColorTexture, clamp(srcUV, 0.0, 1.0));\n" +
+                    "\n" +
+                    "  vec4 originalColor = texture2D(s_ColorTexture, v_TexCoord);\n" +
+                    "  float shiftMagnitude = abs(final_shift) / max(abs(parallax_magnitude), 0.001);\n" +
+                    "  float artifactBlendFactor = (1.0 - smoothstep(0.1, 1.0, shiftMagnitude)) * 0.005;\n" +
+                    "  vec4 finalColor = mix(shiftedColor, originalColor, artifactBlendFactor);\n" +
+                    "\n" +
+                    "  // ---------------- Rot/Blau Debug -----------------\n" +
+                    "  if (u_debugMode) {\n" +
+                    "    vec3 debugTint = vec3(0.0);\n" +
+                    "    if (rightSel > 0.5) { debugTint.r = 0.25; } else { debugTint.b = 0.25; }\n" +
+                    "    finalColor.rgb += debugTint;\n" +
+                    "  }\n" +
+                    "\n" +
+                    "  gl_FragColor = finalColor;\n" +
+                    "}\n";
+
 
     /**
      * An optimized, single-pass Gaussian blur shader that works as a drop-in replacement.

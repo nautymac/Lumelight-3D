@@ -3,6 +3,9 @@ package com.limelight.utils;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.SurfaceTexture;
+import android.opengl.EGL14;
+import android.opengl.EGLDisplay;
+import android.opengl.EGLSurface;
 import android.opengl.GLES20;
 import android.opengl.GLES30;
 import android.opengl.GLSurfaceView;
@@ -72,6 +75,38 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     public static Boolean isActive = false;
     public static String renderer = "CPU";
 
+    // Column-interleaved output for glasses-free 3D panels. When this is off the two eyes
+    // go to the left and right halves of the screen as before, for 3D glasses.
+    public static boolean isInterlaced = false;
+    // 2 views weave as L R L R (Lume Pad 2, ProMa King), 4 views as L L R R (RED Hydrogen One).
+    public static float interlaceNumViews = 2.0f;
+    // Column phase and eye order depend on how the lens sits on the panel. Leia devices
+    // report them; everything else has to be dialled in by eye.
+    public static float interlaceViewOffset = 0.0f;
+    public static float interlaceSwapEyes = 0.0f;
+
+    // Aspect ratio of the incoming stream, or 0 to fill the panel whatever its shape.
+    // The interlaced pass letterboxes to this rather than stretching, because the panel is
+    // rarely the same shape as the stream: a 16:9 stream on the ProMa King's 16:10 screen
+    // comes out 11% too tall otherwise. StreamContainer's own aspect handling cannot do
+    // this job here, because it works by resizing the view, and a resized surface gets
+    // rescaled during composition, which resamples the columns and destroys the weave.
+    public static double streamAspectRatio = 0;
+    // Mirrors the FILL scale mode: crop the overhanging edges instead of adding bars.
+    public static boolean fillDisplay = false;
+
+    // Set on a panel that weaves the views itself from its own face tracking, which is what
+    // Leia's lightfield panels do. The shader then leaves the frame side by side and lets
+    // the panel's SDK take it from there, rather than weaving it twice.
+    public static boolean panelOwnsInterlacing = false;
+
+    // The timing lines below run per frame, which at sixty frames a second is enough to fill
+    // logcat's buffer in seconds and push out everything else that was worth reading. They
+    // are kept for tuning the conversion, but off unless someone asks for them:
+    //   adb shell setprop log.tag.Stereo3DRendererTiming DEBUG
+    private static final boolean LOG_FRAME_TIMING =
+            Log.isLoggable("Stereo3DRendererTiming", Log.DEBUG);
+
     // Private Static Fields
     private static float calcFps = 0;
     private static int depthMapResultCount = 0;
@@ -93,6 +128,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private int bilateralBlurProgram;
     private int depthMapTextureId;
     private int dibr3dProgram;
+    private int dibr3dInterlacedProgram;
 
     private final AtomicReference<ByteBuffer> latestDepthMap = new AtomicReference<>(null);
     private int fboHandle;
@@ -125,6 +161,24 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private ByteBuffer previousPixelBuffer;
     private Surface videoSurface;
     private SurfaceTexture videoSurfaceTexture;
+
+    // Where the finished side-by-side frame goes when something other than this view owns
+    // the screen. On a Leia panel the weave belongs to CNSDK, so the eyes are drawn into a
+    // surface it hands over and it takes them from there.
+    private Surface outputSurface;
+    private EGLSurface outputEglSurface;
+    private EGLDisplay outputEglDisplay;
+    private int outputWidth;
+    private int outputHeight;
+    // The stream's own size within each eye. The surface is shaped to the panel, so when the
+    // stream is a different shape this is smaller than the half it sits in and the rest is
+    // left black, rather than stretching the picture to reach the edges.
+    private int outputContentWidth;
+    private int outputContentHeight;
+    // When the panel has its own converter, the frame handed over is a single view and the
+    // parallax is made downstream. Everything this class does to find depth is then wasted
+    // work, so it is skipped rather than computed and thrown away.
+    private boolean outputMono;
 
     private float ON_DRAW_CHANGE_TRESHOLD = 2.0f;
 
@@ -195,6 +249,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             GLES20.glDeleteProgram(simple3dProgram);
             GLES20.glDeleteProgram(bilateralBlurProgram);
             GLES20.glDeleteProgram(dibr3dProgram);
+            GLES20.glDeleteProgram(dibr3dInterlacedProgram);
 
             int[] textures = {
                     videoTextureId,
@@ -224,6 +279,116 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         return videoSurface;
     }
 
+    /**
+     * Sends the finished frame somewhere other than this view's own screen buffer.
+     *
+     * Passing null puts it back on screen. The surface is picked up on the GL thread at the
+     * next frame, because an EGL surface may only be made on the thread that owns the
+     * context.
+     */
+    public void setOutputSurface(Surface surface, int width, int height,
+                                 int contentWidth, int contentHeight) {
+        setOutputSurface(surface, width, height, contentWidth, contentHeight, false);
+    }
+
+    public void setOutputSurface(Surface surface, int width, int height,
+                                 int contentWidth, int contentHeight, boolean mono) {
+        synchronized (frameLock) {
+            outputSurface = surface;
+            outputWidth = width;
+            outputHeight = height;
+            outputContentWidth = contentWidth;
+            outputContentHeight = contentHeight;
+            outputMono = mono;
+            releaseOutputEglSurface = true;
+        }
+        glSurfaceView.requestRender();
+    }
+
+    private volatile boolean releaseOutputEglSurface;
+
+    /**
+     * Binds the external surface for drawing, and returns what was bound before so the
+     * caller can put it back. Returns null when there is nothing external to draw into.
+     */
+    private EGLSurface[] bindOutputSurface() {
+        Surface target;
+        synchronized (frameLock) {
+            target = outputSurface;
+            if (releaseOutputEglSurface) {
+                destroyOutputEglSurface();
+                releaseOutputEglSurface = false;
+            }
+        }
+        if (target == null) {
+            return null;
+        }
+
+        EGLDisplay display = EGL14.eglGetCurrentDisplay();
+        android.opengl.EGLContext context = EGL14.eglGetCurrentContext();
+
+        if (outputEglSurface == null) {
+            android.opengl.EGLConfig config = findCurrentConfig(display, context);
+            if (config == null) {
+                Log.w("Stereo3DRenderer", "No EGL config for the output surface; drawing on screen");
+                return null;
+            }
+            try {
+                outputEglSurface = EGL14.eglCreateWindowSurface(
+                        display, config, target, new int[]{EGL14.EGL_NONE}, 0);
+            } catch (Throwable t) {
+                Log.w("Stereo3DRenderer", "Could not make an EGL surface for the panel", t);
+                return null;
+            }
+            if (outputEglSurface == null || outputEglSurface == EGL14.EGL_NO_SURFACE) {
+                outputEglSurface = null;
+                return null;
+            }
+            outputEglDisplay = display;
+        }
+
+        EGLSurface previousDraw = EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW);
+        EGLSurface previousRead = EGL14.eglGetCurrentSurface(EGL14.EGL_READ);
+        if (!EGL14.eglMakeCurrent(display, outputEglSurface, outputEglSurface, context)) {
+            Log.w("Stereo3DRenderer", "Could not bind the panel's surface");
+            return null;
+        }
+        return new EGLSurface[]{previousDraw, previousRead};
+    }
+
+    private void unbindOutputSurface(EGLSurface[] previous) {
+        EGLDisplay display = EGL14.eglGetCurrentDisplay();
+        EGL14.eglSwapBuffers(display, outputEglSurface);
+        EGL14.eglMakeCurrent(display, previous[0], previous[1], EGL14.eglGetCurrentContext());
+    }
+
+    private void destroyOutputEglSurface() {
+        if (outputEglSurface != null && outputEglDisplay != null) {
+            EGL14.eglDestroySurface(outputEglDisplay, outputEglSurface);
+        }
+        outputEglSurface = null;
+        outputEglDisplay = null;
+    }
+
+    /**
+     * The context here was made by GLSurfaceView through EGL10, so its config has to be
+     * looked up by id rather than chosen afresh: a window surface only works on a config
+     * the context agrees with.
+     */
+    private android.opengl.EGLConfig findCurrentConfig(EGLDisplay display, android.opengl.EGLContext context) {
+        int[] configId = new int[1];
+        if (!EGL14.eglQueryContext(display, context, EGL14.EGL_CONFIG_ID, configId, 0)) {
+            return null;
+        }
+        int[] attribs = {EGL14.EGL_CONFIG_ID, configId[0], EGL14.EGL_NONE};
+        android.opengl.EGLConfig[] configs = new android.opengl.EGLConfig[1];
+        int[] found = new int[1];
+        if (!EGL14.eglChooseConfig(display, attribs, 0, configs, 0, 1, found, 0) || found[0] < 1) {
+            return null;
+        }
+        return configs[0];
+    }
+
     @Override
     public void onFrameAvailable(SurfaceTexture surfaceTexture) {
         synchronized (frameLock) {
@@ -244,6 +409,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         simple3dProgram = createProgram(ShaderUtils.SIMPLE_VERTEX_SHADER, ShaderUtils.SIMPLE_FRAGMENT_SHADER);
         bilateralBlurProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.OPTIMIZED_SINGLE_PASS_GAUSSIAN_BLUR_SHADER);
         dibr3dProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_3D);
+        dibr3dInterlacedProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_3D_INTERLACED);
 
         initializeFilterFbo();
         initializeIntermediateFbo();
@@ -346,16 +512,137 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     }
 
     private void drawBothEyes(int dualBubble3dProgram, float convergence, float shift) {
-        int viewWidth = glSurfaceView.getWidth();
-        int viewHeight = glSurfaceView.getHeight();
+        drawBothEyes(dualBubble3dProgram, convergence, shift,
+                glSurfaceView.getWidth(), glSurfaceView.getHeight());
+    }
+
+    /**
+     * Draws the frame once, at its own shape, for a converter that wants a single view.
+     *
+     * Same boxing as the two-eye path so the picture keeps its proportions, but no depth and
+     * no parallax: what comes out is the stream as it arrived, and the eyes are made after
+     * this by whatever is reading the surface.
+     */
+    private void drawMonoBoxed() {
+        int drawWidth = outputWidth;
+        int drawHeight = outputHeight;
+
+        if (outputContentWidth > 0 && outputContentHeight > 0) {
+            double contentAspect = (double) outputContentWidth / outputContentHeight;
+            if (outputWidth > outputHeight * contentAspect) {
+                drawHeight = outputHeight;
+                drawWidth = (int) Math.round(outputHeight * contentAspect);
+            } else {
+                drawWidth = outputWidth;
+                drawHeight = (int) Math.round(outputWidth / contentAspect);
+            }
+        }
+
+        GLES20.glViewport((outputWidth - drawWidth) / 2, (outputHeight - drawHeight) / 2,
+                drawWidth, drawHeight);
+        drawQuad(simple3dProgram, 1.0f, 0.0f);
+    }
+
+    /**
+     * Draws the eyes into a surface shaped for the panel rather than for the stream.
+     *
+     * Each eye gets half the surface, and the stream is centred inside its half at its own
+     * shape. A 16:9 stream on a 16:10 panel therefore keeps its proportions and gains a band
+     * top and bottom, instead of being stretched to reach the edges.
+     */
+    private void drawBothEyesBoxed(int dualBubble3dProgram, float convergence, float shift) {
+        int eyeWidth = outputWidth / 2;
+        int drawWidth = eyeWidth;
+        int drawHeight = outputHeight;
+
+        if (outputContentWidth > 0 && outputContentHeight > 0) {
+            double contentAspect = (double) outputContentWidth / outputContentHeight;
+            if (eyeWidth > outputHeight * contentAspect) {
+                drawHeight = outputHeight;
+                drawWidth = (int) Math.round(outputHeight * contentAspect);
+            } else {
+                drawWidth = eyeWidth;
+                drawHeight = (int) Math.round(eyeWidth / contentAspect);
+            }
+        }
+
+        int x = (eyeWidth - drawWidth) / 2;
+        int y = (outputHeight - drawHeight) / 2;
 
         float parallax = getParallax() * 0.06f;
+        float left = interlaceSwapEyes != 0.0f ? parallax : -parallax;
+
+        GLES20.glViewport(x, y, drawWidth, drawHeight);
+        drawEye(dualBubble3dProgram, left, convergence, shift);
+
+        GLES20.glViewport(eyeWidth + x, y, drawWidth, drawHeight);
+        drawEye(dualBubble3dProgram, -left, convergence, shift);
+    }
+
+    private void drawBothEyes(int dualBubble3dProgram, float convergence, float shift,
+                              int viewWidth, int viewHeight) {
+        float parallax = getParallax() * 0.06f;
+
+        // Which half each eye goes in is the one thing that cannot be worked out from here:
+        // a panel that takes the pair over reads them in whatever order it was built to, and
+        // getting it backwards leaves the depth inverted rather than broken, which is why it
+        // is a setting rather than a constant.
+        float left = interlaceSwapEyes != 0.0f ? parallax : -parallax;
 
         GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
-        drawEye(dualBubble3dProgram, -parallax, convergence, shift);
+        drawEye(dualBubble3dProgram, left, convergence, shift);
 
         GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
-        drawEye(dualBubble3dProgram, parallax, convergence, shift);
+        drawEye(dualBubble3dProgram, -left, convergence, shift);
+    }
+
+    /**
+     * Draws both eyes woven together column by column, for glasses-free 3D panels.
+     *
+     * Unlike {@link #drawBothEyes}, which draws twice into half-width viewports, this is a
+     * single full-viewport pass: the shader decides per screen column which eye that column
+     * belongs to, so the panel's lens sends each eye its own set of columns. That means the
+     * image keeps its full width instead of being squeezed into half of it.
+     */
+    private void drawInterlaced(int program, float convergence, float shift) {
+        int surfaceWidth = glSurfaceView.getWidth();
+        int surfaceHeight = glSurfaceView.getHeight();
+
+        int drawWidth = surfaceWidth;
+        int drawHeight = surfaceHeight;
+        if (streamAspectRatio > 0) {
+            // Shrink one axis to the stream's shape. fillDisplay grows past the screen
+            // instead, so the picture is cropped rather than boxed.
+            boolean widerThanScreen = surfaceWidth > surfaceHeight * streamAspectRatio;
+            if (widerThanScreen != fillDisplay) {
+                drawHeight = surfaceHeight;
+                drawWidth = (int) Math.round(surfaceHeight * streamAspectRatio);
+            } else {
+                drawWidth = surfaceWidth;
+                drawHeight = (int) Math.round(surfaceWidth / streamAspectRatio);
+            }
+        }
+
+        // The bars are whatever the viewport does not cover, so they have to be painted out
+        // or the previous frame shows through them.
+        GLES20.glClearColor(0f, 0f, 0f, 1f);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
+        // Centring the viewport does not disturb the weave: the shader keys off gl_FragCoord,
+        // which counts from the window's edge rather than the viewport's, so every column
+        // stays bound to the same physical column of the panel however the image is boxed.
+        GLES20.glViewport((surfaceWidth - drawWidth) / 2, (surfaceHeight - drawHeight) / 2,
+                drawWidth, drawHeight);
+
+        // The weave parameters live on the program object, so they must be set while it is
+        // current. drawEye() binds the same program again, which leaves them in place.
+        GLES20.glUseProgram(program);
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "u_numViews"), interlaceNumViews);
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "u_viewOffset"), interlaceViewOffset);
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "u_swapEyes"), interlaceSwapEyes);
+
+        // Sign is irrelevant here: the shader takes the magnitude and picks the sign per column.
+        drawEye(program, getParallax() * 0.06f, convergence, shift);
     }
 
     private void drawEye(int program, float parallax, float convergence, float shift) {
@@ -391,7 +678,32 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private void drawWithShader() {
         if (prefConfig != null) {
-            drawBothEyes(dibr3dProgram, prefConfig.convergence_ratio, prefConfig.balance_shift);
+            // A panel that weaves its own views wants the eyes side by side in a surface of
+            // its own, so the frame is drawn there instead of on screen and this view stays
+            // out of sight behind it.
+            EGLSurface[] previousTarget = bindOutputSurface();
+            try {
+                if (previousTarget != null) {
+                    // Whatever the stream does not cover has to be painted out, or the last
+                    // frame shows through the bars.
+                    GLES20.glClearColor(0f, 0f, 0f, 1f);
+                    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                    if (outputMono) {
+                        drawMonoBoxed();
+                    } else {
+                        drawBothEyesBoxed(dibr3dProgram, prefConfig.convergence_ratio,
+                                prefConfig.balance_shift);
+                    }
+                } else if (isInterlaced && !panelOwnsInterlacing) {
+                    drawInterlaced(dibr3dInterlacedProgram, prefConfig.convergence_ratio, prefConfig.balance_shift);
+                } else {
+                    drawBothEyes(dibr3dProgram, prefConfig.convergence_ratio, prefConfig.balance_shift);
+                }
+            } finally {
+                if (previousTarget != null) {
+                    unbindOutputSurface(previousTarget);
+                }
+            }
         }
     }
 
@@ -416,12 +728,17 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         synchronized (frameLock) {
             if (!frameAvailable.get()) {
-                if (!isMovieMode) {
-                    glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
-                } else {
+                // Drawing again without a new frame means handing the same picture on a
+                // second time. Where a converter is reading this, that costs it an inference
+                // on something it has already seen -- at sixty draws a second against a
+                // stream arriving at half that, most of its budget went on repeats, and the
+                // frames that mattered queued up behind them. onFrameAvailable asks for a
+                // draw, so waiting here loses nothing.
+                if (isMovieMode || outputMono) {
                     glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
                     return;
                 }
+                glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
             } else if (isMovieMode) {
                 block = true;
             }
@@ -452,7 +769,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         previousFrameForComparison.put(pixelBufferForAI);
 
                         if (inferenceInputQueue.offer(new RenderResult(pixelBufferForAI, difference))) {
-                            Log.d("AiTask", "Success: The AI will now process this buffer.");
+                            if (LOG_FRAME_TIMING) Log.d("AiTask", "Success: The AI will now process this buffer.");
                         } else {
                             freeInputBuffers.offer(pixelBufferForAI);
                         }
@@ -476,7 +793,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     currentlyRenderingMap = newMap;
                     depthMapResultCount++;
                     endTimeAi = System.nanoTime();
-                    Log.d("Stereo3DRenderer", "DepthMap OutputSpeed " + (endTimeAi - startTimeAi) / 1_000_000 + " ms");
+                    if (LOG_FRAME_TIMING) Log.d("Stereo3DRenderer", "DepthMap OutputSpeed " + (endTimeAi - startTimeAi) / 1_000_000 + " ms");
                 }
             }
 
@@ -516,7 +833,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         filledOutputBuffers.remainingCapacity(), aiOutCap,
                         freeSmoothedBuffers.remainingCapacity(), freeSmoothCap
                 );
-                Log.d("Stereo3DRenderer", queueStatus);
+                if (LOG_FRAME_TIMING) Log.d("Stereo3DRenderer", queueStatus);
             } else {
                 calcFps++;
             }
@@ -1034,7 +1351,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     if (pixelBuffer != null) {
                         freeInputBuffers.offer(pixelBuffer);
                     }
-                    Log.d("Stereo3DRenderer", "CalculateTime AiDepthMap: " + duration + " ms " + filledOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms" + "aitime: " + aitimeText);
+                    if (LOG_FRAME_TIMING) Log.d("Stereo3DRenderer", "CalculateTime AiDepthMap: " + duration + " ms " + filledOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms" + "aitime: " + aitimeText);
                 }
             }
             isAiRunning.set(false);
@@ -1140,7 +1457,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     }
                     long duration = (System.nanoTime() - startTime) / 1_000_000;
                     long waitTimeText = (waitTime - startTime) / 1_000_000;
-                    Log.d("Stereo3DRenderer", "CalculateTime AiResult:    " + duration + " ms" + " " + freeOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms ");
+                    if (LOG_FRAME_TIMING) Log.d("Stereo3DRenderer", "CalculateTime AiResult:    " + duration + " ms" + " " + freeOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms ");
                 }
             }
             isAiResultHandlingRunning.set(false);

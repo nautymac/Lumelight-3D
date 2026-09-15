@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The four-view option is dropped here. It describes a weave this app draws itself, and on
+    a lightfield panel the view count is the panel's business: the Lume Pad 2 builds eight of
+    them whatever this says. That leaves a straight choice between glasses and no glasses.
+-->
+<resources>
+
+    <string-array name="stereo_output_mode_names">
+        <item>@string/stereo_output_sbs</item>
+        <item>@string/stereo_output_interlaced_2v</item>
+    </string-array>
+
+    <string-array name="stereo_output_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+
+
+    <!-- Movie mode paces the depth model frame by frame. The panel's converter has no such
+         model to pace, so the entry would do nothing here. -->
+    <string-array name="render_mode_names">
+        <item>@string/render_mode_2d</item>
+        <item>@string/render_mode_3d_sbs</item>
+    </string-array>
+
+    <string-array name="render_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+
+</resources>

@@ -339,6 +339,18 @@ public class StreamSettings extends AppCompatActivity {
             AppCompatActivity activity = (AppCompatActivity) requireActivity();
             PackageManager pm = activity.getPackageManager();
 
+            // Column alignment steers a weave this app draws itself, and a panel that weaves
+            // its own views works its alignment out from the viewer's face, so there it would
+            // sit doing nothing. Which eye goes in which half still matters though: the panel
+            // reads the pair in the order it was built to expect, and only the viewer can say
+            // whether that came out the right way round.
+            if (BuildConfig.LEIA_BUILD) {
+                Preference pref = findPreference("interlace_view_offset");
+                if (pref != null) {
+                    pref.getParent().removePreference(pref);
+                }
+            }
+
             // hide on-screen controls category on non touch screen devices
             if (!pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
                 PreferenceCategory category = findPreference("category_onscreen_controls");
@@ -633,7 +645,7 @@ public class StreamSettings extends AppCompatActivity {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
                 LimeLog.info("Excluding HDR toggle based on OS");
                 PreferenceCategory category =
-                        (PreferenceCategory) findPreference("category_video_settings");
+                        (PreferenceCategory) findPreference("category_video_advanced");
                 category.removePreference(findPreference("checkbox_enable_hdr"));
             }
             else {
@@ -654,13 +666,13 @@ public class StreamSettings extends AppCompatActivity {
                 if (!foundHdr10) {
                     LimeLog.info("Excluding HDR toggle based on display capabilities");
                     PreferenceCategory category =
-                            (PreferenceCategory) findPreference("category_video_settings");
+                            (PreferenceCategory) findPreference("category_video_advanced");
                     category.removePreference(findPreference("checkbox_enable_hdr"));
                 }
                 else if (PreferenceConfiguration.isShieldAtvFirmwareWithBrokenHdr()) {
                     LimeLog.info("Disabling HDR toggle on old broken SHIELD TV firmware");
                     PreferenceCategory category =
-                            (PreferenceCategory) findPreference("category_video_settings");
+                            (PreferenceCategory) findPreference("category_video_advanced");
                     CheckBoxPreference hdrPref = (CheckBoxPreference) category.findPreference("checkbox_enable_hdr");
                     hdrPref.setEnabled(false);
                     hdrPref.setChecked(false);
@@ -910,7 +922,13 @@ public class StreamSettings extends AppCompatActivity {
                             return false;
                         }
 
-                        // Save the value and reload settings
+                        // Typing a resolution here only ever added it to the list below,
+                        // leaving the stream on whatever that list still said. The entered
+                        // size looked set while something else was being sent, so it is
+                        // selected here too.
+                        getPrefs().edit()
+                                .putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, value)
+                                .apply();
                         editAndReload(PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING, value);
 
                         return true;
