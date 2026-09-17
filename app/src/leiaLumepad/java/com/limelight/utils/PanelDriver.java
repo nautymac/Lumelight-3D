@@ -494,8 +494,16 @@ public final class PanelDriver {
      * system setting of 252. Tied to the 3D state rather than to the stream, so a side by side
      * stream watched flat does not sit at full brightness for no reason. It is a window
      * attribute, so it goes with the activity in any case.
+     *
+     * Gated by BuildConfig.FORCE_MAX_BRIGHTNESS (per panel flavour). That problem is specific
+     * to the Lume Pad 2's backlight; RedMagic's own adaptive brightness already does the right
+     * thing without it, so on that flavour this is a no-op -- no window override, no system
+     * settings permission prompt, nothing.
      */
     private void applyBrightness(boolean threeD) {
+        if (!com.limelight.BuildConfig.FORCE_MAX_BRIGHTNESS) {
+            return;
+        }
         final Activity activity = activityRef == null ? null : activityRef.get();
         if (activity != null) {
             activity.runOnUiThread(() -> {

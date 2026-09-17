@@ -81,6 +81,14 @@ android {
             dimension "panel"
             buildConfigField "boolean", "LEIA_BUILD", "true"
 
+            // Lume Pad 2 in 3D runs on the diffractive light alone with the uniform
+            // backlight off, so the same system brightness looks darker than in 2D, and
+            // adaptive brightness makes it worse without showing it (measured: held at 203
+            // against a system setting of 252). RedMagic's own adaptive brightness already
+            // does the right thing without this (on-device A/B, see PanelDriver's flavour
+            // comment), so it's a per-device field rather than shared behaviour.
+            buildConfigField "boolean", "FORCE_MAX_BRIGHTNESS", "true"
+
             // Without this the panel flavours share an application id, so installing one
             // silently replaces another and there is no way to tell from the device which
             // is actually there. They target different hardware and are worth keeping side
@@ -99,6 +107,7 @@ android {
         leiaRedmagic {
             dimension "panel"
             buildConfigField "boolean", "LEIA_BUILD", "true"
+            buildConfigField "boolean", "FORCE_MAX_BRIGHTNESS", "false"
             applicationIdSuffix ".leia.redmagic"
         }
     }
