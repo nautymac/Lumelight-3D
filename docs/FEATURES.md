@@ -24,9 +24,9 @@ PC 화면을 스트리밍해서 Leia Lume Pad 2 또는 RedMagic Tablet 3D Explor
 - **3D Effect Strength** 슬라이더로 입체감의 정도를 조절한다. 가운데가 기본값, 끝까지 올리면 두 배.
 - 초점(눈이 모이는 지점)은 장면이 바뀔 때마다 자동으로 맞춰진다.
 
-### 화면이 자동으로 밝아진다
+### 화면 밝기 (Lume Pad 2만)
 
-3D를 볼 때는 화면이 최대 밝기로 바뀌고, 끄면 원래 밝기로 돌아온다. 처음 한 번 "시스템 설정 수정" 권한을 물어보는데, 이건 밝기를 되돌리는 데만 쓰인다 — 허용하지 않아도 3D 자체는 잘 된다.
+Lume Pad 2는 3D를 볼 때 화면이 최대 밝기로 바뀌고, 끄면 원래 밝기로 돌아온다 — 3D에서 균일 백라이트가 꺼져 어두워지는 문제 때문이다. 처음 한 번 "시스템 설정 수정" 권한을 물어보는데, 이건 밝기를 되돌리는 데만 쓰인다 — 허용하지 않아도 3D 자체는 잘 된다. RedMagic은 이 문제가 없어서 밝기를 건드리지 않는다(권한 요청도 없음).
 
 ### 흔들리지 않는 얼굴추적
 
@@ -70,9 +70,9 @@ Pick one in Settings › Video Settings › 3D Settings › **3D Source**.
 - **3D Effect Strength** adjusts how deep the 3D looks — middle is default, all the way up is double.
 - Focus (where your eyes converge) adjusts automatically as scenes change.
 
-### The screen brightens itself
+### Screen brightness (Lume Pad 2 only)
 
-The screen jumps to full brightness while in 3D and returns to normal when you leave it. The first time, it asks once for permission to modify system settings — that's only used to restore brightness, and 3D works fine even if you say no.
+On the Lume Pad 2, the screen jumps to full brightness while in 3D and returns to normal when you leave it — 3D turns off the uniform backlight, which would otherwise look dim. The first time, it asks once for permission to modify system settings — that's only used to restore brightness, and 3D works fine even if you say no. RedMagic doesn't have this problem, so it leaves brightness alone entirely (no permission prompt either).
 
 ### Face tracking that doesn't give up
 
