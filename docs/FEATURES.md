@@ -18,6 +18,10 @@ PC 화면을 스트리밍해서 Leia Lume Pad 2 또는 RedMagic Tablet 3D Explor
 - **Toggle 3D** — 스트림 메뉴에서 3D와 평면 화면을 즉시 전환.
 - **Start Streams in 3D** — 켜두면 연결되자마자 자동으로 3D로 시작.
 
+> [!IMPORTANT]
+> **세 손가락으로 1초 길게 누르면 3D가 켜지고 꺼집니다.** 단, 기본 터치 모드(멀티터치)에서는 설정 › 입력 설정 › **Enable multi-touch gestures**를 켜야 동작합니다. 꺼져 있으면 세 손가락이 PC 터치로 그대로 넘어갑니다. 트랙패드·마우스 모드에서는 설정 없이 동작합니다.
+> 이 설정을 켜면 세 손가락 탭(키보드), 네 손가락 탭(전체 키보드), 다섯 손가락 탭(메뉴)도 앱이 가로챕니다.
+
 ### 화질과 속도
 
 - 화면 해상도는 그대로 받고, 3D로 바꾸는 계산만 패널이 실제로 보여줄 수 있는 크기로 줄여서 처리한다. 글자가 흐려지지 않으면서도 변환이 끊기지 않는다.
@@ -63,6 +67,10 @@ Pick one in Settings › Video Settings › 3D Settings › **3D Source**.
 
 - **Toggle 3D** in the stream menu switches between 3D and flat at any time.
 - **Start Streams in 3D** starts every stream already in 3D.
+
+> [!IMPORTANT]
+> **Hold three fingers for 1 second to toggle 3D on and off.** In the default touch mode (multi-touch) this only works with Settings › Input Settings › **Enable multi-touch gestures** turned on; otherwise the three fingers go straight to the PC as touches. Trackpad and mouse modes need no setting.
+> With that setting on, the app also takes three-finger taps (keyboard), four-finger taps (full keyboard) and five-finger taps (menu).
 
 ### Quality and speed
 

@@ -35,6 +35,10 @@
 
 스트림 중 메뉴의 **Toggle 3D**로 언제든 2D와 3D를 오갈 수 있습니다. **Start Streams in 3D**를 켜면 연결되자마자 3D로 시작합니다. 권장 설정: **3D Output = Glasses-Free 3D**.
 
+> [!IMPORTANT]
+> **세 손가락으로 1초 길게 누르면 3D가 켜지고 꺼집니다.** 단, 기본 터치 모드(멀티터치)에서는 설정 › 입력 설정 › **Enable multi-touch gestures**를 켜야 동작합니다. 꺼져 있으면 세 손가락이 PC 터치로 그대로 넘어갑니다. 트랙패드·마우스 모드에서는 설정 없이 동작합니다.
+> 이 설정을 켜면 세 손가락 탭(키보드), 네 손가락 탭(전체 키보드), 다섯 손가락 탭(메뉴)도 앱이 가로챕니다.
+
 - **스트림은 선명하게, 변환은 가볍게.** 스트림은 패널 해상도(2560×1600) 그대로 받습니다. 변환기에는 패널이 한 눈에 보여줄 수 있는 크기(1920×1200)까지만 넘깁니다. 이미 넘긴 프레임은 다시 넘기지 않습니다. 그래서 변환 속도가 들어오는 프레임을 따라갑니다.
 - **3D Effect Strength**로 2D→3D의 깊이 강도를 조절합니다. 가운데 값이 Leia 기본값이고, 끝까지 올리면 두 배입니다. 초점(수렴)은 장면마다 자동으로 잡습니다.
 - **밝기.** 3D에서는 화면을 최대 밝기로 올리고, 3D를 끄면 원래 밝기로 돌립니다. 이 패널들은 3D를 나와도 밝게 남는 일이 있어서, 앱이 시스템 밝기를 한 번 다시 써 넣습니다. 처음 3D를 켤 때 **「시스템 설정 수정」 권한**을 한 번 묻습니다. 밝기에만 쓰며, 허용하지 않아도 3D는 됩니다.
@@ -105,6 +109,10 @@ On both, the weaving core, the weaving shader and face tracking are done by the 
 - **2D to 3D (panel converter)** — ordinary 2D is turned into 3D by the **device's Leia NPU converter**. The app carries no AI model of its own, and the depth is much better than MiDaS.
 
 **Toggle 3D** in the in-stream menu switches between 2D and 3D at any time. With **Start Streams in 3D** on, a stream starts in 3D as soon as it connects. Recommended: **3D Output = Glasses-Free 3D**.
+
+> [!IMPORTANT]
+> **Hold three fingers for 1 second to toggle 3D on and off.** In the default touch mode (multi-touch) this only works with Settings › Input Settings › **Enable multi-touch gestures** turned on; otherwise the three fingers go straight to the PC as touches. Trackpad and mouse modes need no setting.
+> With that setting on, the app also takes three-finger taps (keyboard), four-finger taps (full keyboard) and five-finger taps (menu).
 
 - **Sharp stream, light conversion.** The stream arrives at the panel's full resolution (2560×1600). The converter is only fed what the panel can show per eye (1920×1200), and a frame it has already been given is not sent again. That lets the conversion keep pace with the incoming frames.
 - **3D Effect Strength** sets the depth of 2D→3D. The middle is Leia's default; all the way up is double. Convergence is set automatically, scene by scene.
