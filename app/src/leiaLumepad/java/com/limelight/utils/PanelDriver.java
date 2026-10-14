@@ -372,8 +372,13 @@ public final class PanelDriver {
             }
             try {
                 engine.setAutoConvergence(true);
+                // Re-aim without zooming. The engine's default zooms in to hide the edges it
+                // shifts, and as convergence moves scene by scene that made the whole stream
+                // breathe in and out. A sliver of edge is the lesser cost on a desktop.
+                engine.setReconvergenceMode(
+                        com.leiainc.leiamediasdk.interfaces.ReconvergenceMode.noZoom);
             } catch (Throwable t) {
-                Log.w(TAG, "Could not turn on the stereo engine's auto convergence: " + t);
+                Log.w(TAG, "Could not set up the stereo engine's convergence: " + t);
             }
             Log.i(TAG, "Panel stereo engine ready in " + (System.currentTimeMillis() - started)
                     + "ms for " + width + "x" + height + " side by side");
