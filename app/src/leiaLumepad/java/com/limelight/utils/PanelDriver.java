@@ -82,6 +82,20 @@ public final class PanelDriver {
     private int trackerAttempt;
     private int faceSamples;
     private boolean viewerAnnounced;
+    private boolean trackerReasked;
+
+    // The tracker runs in a system service of its own, and Android only lets a service use
+    // the camera while something in front lends it the right: a service CNSDK brings up
+    // from here is bound without that (BIND_AUTO_CREATE | BIND_IMPORTANT only), so whether
+    // its camera opens depends on the state the service happened to be in when it went
+    // foreground. On the device that came out as the camera refused ("disabled by policy")
+    // whenever the service process was young, and fine once it had been up a while. So for
+    // as long as 3D is on, this app holds a binding of its own that passes its foreground
+    // camera right along (BIND_INCLUDE_CAPABILITIES). The binder itself is not used.
+    private static final String TRACKER_PACKAGE = "com.leia.headtrackingservice";
+    private static final String TRACKER_SERVICE = "com.leia.headtrackingservice.HeadTrackingService";
+    private static final int FACE_SAMPLES_BEFORE_REASK = 4;
+    private android.content.ServiceConnection trackerLease;
 
     private PanelDriver(LeiaSDK sdk) {
         this.sdk = sdk;
@@ -452,6 +466,7 @@ public final class PanelDriver {
             mainHandler.removeCallbacks(trackerWatch);
             sdk.enableBacklight(false);
             sdk.enableFaceTracking(false);
+            lendCameraToTracker(false);
             if (view != null) {
                 view.onPause();
             }
@@ -481,6 +496,7 @@ public final class PanelDriver {
 
         driver.applyBrightness(false);
         mainHandler.removeCallbacks(driver.trackerWatch);
+        driver.lendCameraToTracker(false);
         driver.stopConversion();
         try {
             if (driver.view != null) {
@@ -682,6 +698,7 @@ public final class PanelDriver {
         if (!active) {
             applyBrightness(false);
         }
+        lendCameraToTracker(active);
         try {
             // enable, not start. Starting only runs a tracker that is already enabled, and
             // this app never enabled one: what came of that was a panel weaving from a
@@ -712,7 +729,57 @@ public final class PanelDriver {
         trackerAttempt = 0;
         faceSamples = 0;
         viewerAnnounced = false;
+        trackerReasked = false;
         mainHandler.postDelayed(trackerWatch, TRACKER_RETRY_MS);
+    }
+
+    /** Holds, or lets go of, the binding that lends the tracker this app's camera right. */
+    private void lendCameraToTracker(boolean hold) {
+        final Context context = appContext;
+        if (context == null) {
+            return;
+        }
+        if (hold) {
+            if (trackerLease != null) {
+                return;
+            }
+            android.content.ServiceConnection lease = new android.content.ServiceConnection() {
+                @Override
+                public void onServiceConnected(android.content.ComponentName name,
+                                               android.os.IBinder service) {
+                    Log.i(TAG, "Holding the tracker service with this app's camera right");
+                }
+
+                @Override
+                public void onServiceDisconnected(android.content.ComponentName name) {
+                    Log.w(TAG, "The tracker service went away while 3D was on");
+                }
+            };
+            try {
+                android.content.Intent intent = new android.content.Intent();
+                intent.setClassName(TRACKER_PACKAGE, TRACKER_SERVICE);
+                int flags = Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT
+                        | Context.BIND_INCLUDE_CAPABILITIES;
+                if (context.bindService(intent, lease, flags)) {
+                    trackerLease = lease;
+                } else {
+                    Log.w(TAG, "Could not bind the tracker service; its camera is on its own");
+                    try {
+                        context.unbindService(lease);
+                    } catch (Throwable ignored) {
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not bind the tracker service: " + t);
+            }
+        } else if (trackerLease != null) {
+            try {
+                context.unbindService(trackerLease);
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not release the tracker service: " + t);
+            }
+            trackerLease = null;
+        }
     }
 
     private final Runnable trackerWatch = new Runnable() {
@@ -752,6 +819,17 @@ public final class PanelDriver {
                 if (seen && !viewerAnnounced) {
                     viewerAnnounced = true;
                     announce(com.limelight.R.string.leia_tracking_active);
+                }
+                // Running but seeing nobody for this long usually means its camera never
+                // opened (it is refused, not retried, by the service). Asking once more
+                // starts the service's foreground session over, now under the lease above.
+                if (!seen && !viewerAnnounced && !trackerReasked
+                        && faceSamples >= FACE_SAMPLES_BEFORE_REASK) {
+                    trackerReasked = true;
+                    Log.w(TAG, "No viewer after " + faceSamples
+                            + "s; asking the tracker again in case its camera was refused");
+                    sdk.enableFaceTracking(false);
+                    sdk.enableFaceTracking(true);
                 }
                 // Often while the session settles, then just enough to show it is still alive.
                 mainHandler.postDelayed(this, faceSamples < FACE_SAMPLES_FAST ? 1000 : 10000);
