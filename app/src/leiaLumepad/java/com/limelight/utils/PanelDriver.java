@@ -321,6 +321,67 @@ public final class PanelDriver {
         }
     }
 
+    /**
+     * Puts Leia's stereo engine between a side by side stream and the panel.
+     *
+     * A side by side stream arrives with whatever disparity the host gave it, sized for a
+     * monitor rather than this panel and never re-aimed. Woven as-is, a large disparity
+     * shows as the views shimmering and doubling as the head moves, which reads as face
+     * tracking not working -- the 2D-to-3D converter never showed it because it keeps its
+     * own disparity small and re-centres it scene by scene. The stereo engine does that
+     * re-centring for footage that already has two eyes (it is what LeiaPlayer uses for
+     * side by side video), and its output is still two tiles, so CNSDK is set up exactly as
+     * before.
+     *
+     * Same threading and single-owner rules as {@link #startConversion}. The stream's
+     * decoder is handed the engine's input through {@code listener}; if the engine cannot
+     * start, it is handed {@code out} instead and the stream is woven as it was before.
+     * Returns false when there is no engine on the device at all.
+     */
+    public boolean startReconvergence(Context context, Surface out, int width, int height,
+                                      SurfaceListener listener) {
+        final com.leiainc.leiamediasdk.LeiaMediaSDK media =
+                com.leiainc.leiamediasdk.LeiaMediaSDK.getInstance(context);
+        if (media == null) {
+            return false;
+        }
+        final Context service = com.leiainc.leiamediasdk.LeiaMediaSDK.serviceContext(context);
+        if (service == null) {
+            return false;
+        }
+
+        new Thread(() -> {
+            long started = System.currentTimeMillis();
+            com.leiainc.leiamediasdk.interfaces.StereoVideoSurfaceRenderer engine =
+                    media.createStereoVideoSurfaceRenderer(service, out, surfaceTexture -> {
+                        // A whole side by side frame goes in, both eyes at once.
+                        surfaceTexture.setDefaultBufferSize(width, height);
+                        Surface input = new Surface(surfaceTexture);
+                        synchronized (PanelDriver.class) {
+                            conversionInput = input;
+                        }
+                        listener.onPanelSurfaceReady(input);
+                    });
+            if (engine == null) {
+                Log.w(TAG, "The panel's stereo engine would not start; weaving the stream as sent");
+                listener.onPanelSurfaceReady(out);
+                return;
+            }
+            synchronized (PanelDriver.class) {
+                conversionEngine = engine;
+            }
+            try {
+                engine.setAutoConvergence(true);
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not turn on the stereo engine's auto convergence: " + t);
+            }
+            Log.i(TAG, "Panel stereo engine ready in " + (System.currentTimeMillis() - started)
+                    + "ms for " + width + "x" + height + " side by side");
+        }, "leia-reconverge").start();
+
+        return true;
+    }
+
     /** Lets the converter go. Blocks on its rendering thread, so keep it off the main one. */
     public void stopConversion() {
         Object engine;
@@ -336,6 +397,12 @@ public final class PanelDriver {
                 ((com.leiainc.leiamediasdk.interfaces.MonoVideoSurfaceRenderer) engine).release();
             } catch (Throwable t) {
                 Log.w(TAG, "Could not release the panel's converter: " + t);
+            }
+        } else if (engine instanceof com.leiainc.leiamediasdk.interfaces.StereoVideoSurfaceRenderer) {
+            try {
+                ((com.leiainc.leiamediasdk.interfaces.StereoVideoSurfaceRenderer) engine).release();
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not release the panel's stereo engine: " + t);
             }
         }
         if (input != null) {

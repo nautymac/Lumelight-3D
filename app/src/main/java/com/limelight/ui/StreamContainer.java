@@ -438,6 +438,21 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
                         prefConfig.width, prefConfig.height);
                 return;
             }
+
+            // A side by side stream goes through the panel's stereo engine on the way, which
+            // re-aims its convergence the way the converter does for 2D. Woven raw, the
+            // host's disparity is too large for this panel and the views shimmer as the head
+            // moves. The decoder is given the engine's input once it has one; without an
+            // engine it is given the panel's surface directly, as before.
+            boolean reconverging = mPanelDriver.startReconvergence(getContext(), surface,
+                    mPanelSurfaceWidth, mPanelSurfaceHeight,
+                    input -> post(() -> {
+                        mCurrentSurface = input;
+                        notifySurfaceReady();
+                    }));
+            if (reconverging) {
+                return;
+            }
             mCurrentSurface = surface;
             notifySurfaceReady();
         });
