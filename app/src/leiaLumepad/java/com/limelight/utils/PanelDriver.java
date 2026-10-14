@@ -71,6 +71,18 @@ public final class PanelDriver {
     private int sourceWidth;
     private int sourceHeight;
 
+    // The tracker is a shared service, and asking for it does not always get it at once: it
+    // can still be letting go of its last client. So once 3D is on, the ask is repeated a
+    // few times until the SDK says the tracker is running, and from then on the viewer's
+    // position is written to the log now and then. Whether the weave is following a face
+    // can be read there rather than judged by eye.
+    private static final int TRACKER_ATTEMPTS = 5;
+    private static final long TRACKER_RETRY_MS = 400;
+    private static final int FACE_SAMPLES_FAST = 10;
+    private int trackerAttempt;
+    private int faceSamples;
+    private boolean viewerAnnounced;
+
     private PanelDriver(LeiaSDK sdk) {
         this.sdk = sdk;
     }
@@ -437,6 +449,7 @@ public final class PanelDriver {
             // app is not left looking at a panel still running in 3D. Brightness goes first,
             // for the reason given in applyState.
             applyBrightness(false);
+            mainHandler.removeCallbacks(trackerWatch);
             sdk.enableBacklight(false);
             sdk.enableFaceTracking(false);
             if (view != null) {
@@ -467,6 +480,7 @@ public final class PanelDriver {
         initFailed = false;
 
         driver.applyBrightness(false);
+        mainHandler.removeCallbacks(driver.trackerWatch);
         driver.stopConversion();
         try {
             if (driver.view != null) {
@@ -684,8 +698,75 @@ public final class PanelDriver {
             Log.w(TAG, "Failed to set Leia panel state: " + t);
         }
         if (active) {
+            armFaceTracking();
             applyBrightness(true);
+        } else {
+            mainHandler.removeCallbacks(trackerWatch);
         }
         applyTiling();
+    }
+
+    /** 3D has just come on, by the gesture or at connect: check the tracker from the start. */
+    private void armFaceTracking() {
+        mainHandler.removeCallbacks(trackerWatch);
+        trackerAttempt = 0;
+        faceSamples = 0;
+        viewerAnnounced = false;
+        mainHandler.postDelayed(trackerWatch, TRACKER_RETRY_MS);
+    }
+
+    private final Runnable trackerWatch = new Runnable() {
+        @Override
+        public void run() {
+            if (!ready || !enabled || !hasFocus) {
+                return;
+            }
+            try {
+                if (!sdk.isFaceTrackingStarted()) {
+                    trackerAttempt++;
+                    // enable arms the tracker and start runs it. The SDK is meant to do the
+                    // second on its own after the first, but it is asked for outright here,
+                    // since a weave aimed at the default viewpoint looks the same as a
+                    // tracker that was never asked.
+                    sdk.enableFaceTracking(true);
+                    sdk.startFaceTracking(true);
+                    boolean started = sdk.isFaceTrackingStarted();
+                    Log.i(TAG, "Face tracker " + (started ? "started" : "still not running")
+                            + " on attempt " + trackerAttempt + " of " + TRACKER_ATTEMPTS);
+                    if (!started) {
+                        if (trackerAttempt < TRACKER_ATTEMPTS) {
+                            mainHandler.postDelayed(this, TRACKER_RETRY_MS);
+                        } else {
+                            Log.w(TAG, "The tracker would not start; the weave is aimed at"
+                                    + " the default viewpoint");
+                            announce(com.limelight.R.string.leia_tracking_unavailable);
+                        }
+                        return;
+                    }
+                }
+                com.leia.core.Vector3 face = sdk.getPrimaryFace();
+                boolean seen = face != null && (face.x != 0f || face.y != 0f || face.z != 0f);
+                faceSamples++;
+                Log.i(TAG, "Viewer " + (seen ? "at " + face.x + "," + face.y + "," + face.z
+                        : "not seen") + " (sample " + faceSamples + ")");
+                if (seen && !viewerAnnounced) {
+                    viewerAnnounced = true;
+                    announce(com.limelight.R.string.leia_tracking_active);
+                }
+                // Often while the session settles, then just enough to show it is still alive.
+                mainHandler.postDelayed(this, faceSamples < FACE_SAMPLES_FAST ? 1000 : 10000);
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not check the face tracker: " + t);
+            }
+        }
+    };
+
+    private void announce(final int text) {
+        final Activity activity = activityRef == null ? null : activityRef.get();
+        if (activity == null) {
+            return;
+        }
+        activity.runOnUiThread(() -> android.widget.Toast.makeText(activity, text,
+                android.widget.Toast.LENGTH_SHORT).show());
     }
 }

@@ -289,4 +289,6 @@
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
     <string name="title_enable_commit_text">커밋 텍스트 입력 활성화 (스와이프/음성)</string>
     <string name="summary_enable_commit_text">소프트 키보드의 여러 글자 입력(제스처 타이핑, 예측, 음성 입력)을 PC로 전달합니다. 키 단위 입력에 의존하는 게임에서는 문제가 발생할 수 있습니다.</string>
+    <string name="leia_tracking_active">눈 추적 동작 중</string>
+    <string name="leia_tracking_unavailable">눈 추적 사용 불가</string>
 </resources>

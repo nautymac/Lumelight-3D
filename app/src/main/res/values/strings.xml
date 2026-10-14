@@ -589,6 +589,8 @@
     <string name="title_auto_enable_3d">Start Streams in 3D</string>
     <string name="summary_auto_enable_3d">Turns 3D on as soon as a stream connects. Leave it off to start in 2D and switch over from the stream menu.</string>
     <string name="toast_3d_enabled">Glasses-free 3D on</string>
+    <string name="leia_tracking_active">Eye tracking active</string>
+    <string name="leia_tracking_unavailable">Eye tracking unavailable</string>
     <string name="toast_3d_disabled">Glasses-free 3D off</string>
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
