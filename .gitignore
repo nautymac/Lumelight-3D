@@ -60,3 +60,5 @@ app/libs/redmagic/
 app/libs/*.bak
 app/src/leiaLumepad/assets/
 app/src/leiaRedmagic/assets/
+# Pinned debug signing key (see app/build.gradle). Copied in from the backup, never committed.
+signing/

@@ -154,6 +154,23 @@ android {
         }
     }
 
+    // Sign debug builds with one fixed key rather than whatever debug key the building PC
+    // happens to have. Every Lumelight APK so far was signed with the original MiniPC's debug
+    // key; an APK signed with any other key won't install over it, and uninstalling first
+    // wipes the app's settings and PC pairings. The key isn't committed (signing/ is ignored)
+    // -- copy it in from the backup. Without it the build falls back to this PC's own key.
+    def pinnedDebugKey = rootProject.file("signing/lumelight-debug.keystore")
+    signingConfigs {
+        debug {
+            if (pinnedDebugKey.exists()) {
+                storeFile pinnedDebugKey
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ".noirdebug"
