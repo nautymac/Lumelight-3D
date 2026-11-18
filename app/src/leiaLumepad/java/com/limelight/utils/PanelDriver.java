@@ -431,13 +431,9 @@ public final class PanelDriver {
         if (view == null || sourceWidth <= 0 || sourceHeight <= 0) {
             return;
         }
-        try {
-            view.setSourceSize(sourceWidth, sourceHeight);
-            view.setScaleType(ScaleType.FIT_CENTER);
-            Log.i(TAG, "Panel source size " + sourceWidth + "x" + sourceHeight);
-        } catch (Throwable t) {
-            Log.w(TAG, "Failed to set the panel source size", t);
-        }
+        // The size the panel is told depends on whether the frame is split (see applyTiling).
+        applyTiling();
+        Log.i(TAG, "Panel source size " + sourceWidth + "x" + sourceHeight);
     }
 
     public void set3DMode(boolean enabled) {
@@ -659,16 +655,26 @@ public final class PanelDriver {
             return;
         }
         boolean split = sideBySide && enabled;
+        // A half side-by-side frame (each eye squeezed to half width to share a 16:9 frame)
+        // is declared twice as wide, so each tile has the scene's own shape. FIT_CENTER then
+        // shows it at that shape: 16:9 on the RedMagic's 16:10 panel gets black bars top and
+        // bottom, as the flat picture does. Stretching split tiles with FILL, as before,
+        // undid the squeeze but also pulled 16:9 out to 16:10 (no bars, everything taller).
+        // A full side-by-side frame (each eye whole, much wider than one picture) and the
+        // converter's frames (built two panel-shaped eyes wide) already have tiles of the
+        // right shape.
+        boolean halfSbs = split && sourceWidth > 0 && sourceHeight > 0
+                && (float) sourceWidth / sourceHeight < 2.2f;
+        if (sourceWidth > 0 && sourceHeight > 0) {
+            try {
+                view.setSourceSize(halfSbs ? sourceWidth * 2 : sourceWidth, sourceHeight);
+            } catch (Throwable t) {
+                Log.w(TAG, "Failed to set the panel source size", t);
+            }
+        }
         try (InterlacedSurfaceViewConfigAccessor config = view.getConfig()) {
             config.setNumTiles(split ? 2 : 1, 1);
-            // FIT_CENTER keeps each tile at its own shape, and a tile of a side by side frame
-            // is not the shape of the scene: each eye was squeezed to half its width to share
-            // the frame, so kept as it is it sits in the middle half of the panel with black
-            // either side -- squashed, and dim for all the black. Split tiles are therefore
-            // stretched to fill, which undoes the squeeze. Converted frames are already built
-            // to the panel's shape, so for them fill and fit are the same thing. A single
-            // tile is a frame shown flat, and keeps its proportions.
-            config.setScaleType(split ? ScaleType.FILL : ScaleType.FIT_CENTER);
+            config.setScaleType(ScaleType.FIT_CENTER);
             com.leia.core.Vector2i size = config.getSourceSize();
             Log.i(TAG, "tiles=" + config.getNumTilesX() + "x" + config.getNumTilesY()
                     + " source=" + (size == null ? "null" : size.x + "x" + size.y)

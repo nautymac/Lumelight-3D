@@ -52,6 +52,9 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
     private int mPanelSurfaceWidth;
     private int mPanelSurfaceHeight;
 
+    // The panel SDK's own view is showing the stream (Leia), see init.
+    private boolean mPanelViewInUse;
+
     private SurfaceView mSurfaceView;
     private Surface mCurrentSurface;
     private Runnable onSurfaceAvailable;
@@ -168,6 +171,7 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
             if (panelView instanceof SurfaceView) {
                 removeView(mSurfaceView);
                 mSurfaceView = (SurfaceView) panelView;
+                mPanelViewInUse = true;
                 addView(mSurfaceView, childParams);
 
                 if (renderMode != StreamMode.MODE_2D) {
@@ -227,7 +231,11 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        if (renderMode != StreamMode.MODE_2D) {
+        // A Leia panel view must cover the panel at its own pixels, never be resized: it
+        // letterboxes the picture itself with FIT_CENTER (black bars top and bottom for 16:9
+        // on a 16:10 panel). Shrinking it to the stream's shape (2560x1440 on the RedMagic)
+        // moved its weave off the panel's own grid.
+        if (renderMode != StreamMode.MODE_2D || mPanelViewInUse) {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             return;
         }
@@ -352,6 +360,15 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
 
     public SurfaceView getSurfaceView() {
         return mSurfaceView;
+    }
+
+    /**
+     * True when the decoder renders straight into this view's surface (plain 2D), so its
+     * buffer may be fixed at the stream's size. False when the picture on screen is woven
+     * by a panel SDK view or a GL renderer: that buffer must stay at the view's own size.
+     */
+    public boolean isDirectDecodeSurface() {
+        return renderMode == StreamMode.MODE_2D && !mPanelViewInUse;
     }
 
     /**
